@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+@theme {
+  --color-apple-light: #f5f5f7;
+  --color-apple-gray: #86868b;
+  --color-apple-dark: #1d1d1f;
+  --color-apple-blue: #1a6dff;
+  --font-sans: "Inter", "SF Pro Display", "system-ui", sans-serif;
+}
+
+@layer base {
+  /* Force light mode always */
+  html {
+    color-scheme: light !important;
+  }
+
+  body {
+    @apply bg-apple-light text-apple-dark antialiased selection:bg-apple-blue selection:text-white;
+  }
+}
+
+/* OVERRIDES DE FULLCALENDAR (Estética Apple) */
+.calendar-container {
+  --fc-border-color: #f0f0f0;
+  --fc-button-text-color: #1d1d1f;
+  --fc-button-bg-color: #f5f5f7;
+  --fc-button-border-color: #e5e5ea;
+  --fc-button-hover-bg-color: #e5e5ea;
+  --fc-button-hover-border-color: #e5e5ea;
+  --fc-button-active-bg-color: #d1d1d6;
+  --fc-button-active-border-color: #d1d1d6;
+  --fc-today-bg-color: rgba(41, 151, 255, 0.06);
+}
+
+div.fc .fc-toolbar-title {
+  @apply text-lg md:text-xl font-bold tracking-tight text-[#1d1d1f];
+}
+
+div.fc .fc-button {
+  @apply rounded-xl font-medium px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm shadow-none transition-all duration-200;
+}
+
+div.fc .fc-button-primary:focus {
+  @apply ring-2 ring-apple-blue ring-offset-2 outline-none;
+}
+
+div.fc .fc-button-primary.fc-button-active,
+div.fc .fc-button-primary:active {
+  background-color: var(--color-apple-blue) !important;
+  border-color: var(--color-apple-blue) !important;
+  color: #fff !important;
+  box-shadow: 0 0 8px rgba(26, 109, 255, 0.3), 0 0 16px rgba(26, 109, 255, 0.1) !important;
+}
+
+div.fc .fc-col-header-cell {
+  @apply py-2 md:py-3 text-[10px] md:text-xs font-semibold uppercase tracking-wider text-[#86868b] border-b-0;
+}
+
+div.fc .fc-daygrid-day-number {
+  @apply p-1 md:p-2 text-xs md:text-sm font-medium hover:bg-gray-100 rounded-full w-7 h-7 md:w-8 md:h-8 flex items-center justify-center m-0.5 md:m-1 transition-colors;
+}
+
+.fc-theme-standard td, .fc-theme-standard th {
+  @apply border-[#f0f0f0];
+}
+
+/* LIST VIEW OVERRIDES (Mobile) */
+.fc-list {
+  @apply rounded-xl border-none font-sans;
+}
+.fc-list-day-cushion {
+  @apply bg-[#f5f5f7] py-2.5 px-4 text-sm font-semibold text-[#1d1d1f];
+}
+.fc-list-event:hover td {
+  @apply bg-gray-50 cursor-pointer;
+}
+.fc-list-event-title, .fc-list-event-time {
+  @apply py-3 px-4 text-[13px] border-b border-[#f0f0f0];
+}
+.fc-list-event-title a {
+  @apply font-medium text-[#1d1d1f];
+}
+.fc-list-empty {
+  @apply bg-transparent flex items-center justify-center h-36 text-[#86868b] font-medium text-sm;
+}
+
+/* MOBILE TOOLBAR STACKING */
+@media (max-width: 767px) {
+  .fc-toolbar {
+    flex-direction: column !important;
+    gap: 6px;
+    align-items: center;
+    padding: 0 4px;
+  }
+  .fc-toolbar-chunk {
+    margin: 2px 0;
+  }
+  /* Smaller buttons on mobile */
+  div.fc .fc-button {
+    padding: 4px 10px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+  /* Compact day cells */
+  .fc .fc-daygrid-body-natural .fc-daygrid-day-events {
+    margin-bottom: 0;
+  }
+  .fc .fc-daygrid-day-frame {
+    min-height: 2.8em;
+  }
+}
+
+/* iOS Safe Area for bottom nav */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-nav-safe {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Active states for mobile card-like touch */
+.tap-card {
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+.tap-card:active {
+  transform: scale(0.98);
+}
+
+/* Neon glow utility for blue elements */
+.neon-blue {
+  box-shadow: 0 0 8px rgba(26, 109, 255, 0.3), 0 0 16px rgba(26, 109, 255, 0.1);
+}
+.neon-blue-sm {
+  box-shadow: 0 0 5px rgba(26, 109, 255, 0.3), 0 0 10px rgba(26, 109, 255, 0.1);
+}

@@ -5,9 +5,11 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import listPlugin from "@fullcalendar/list";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { Bell, ChevronRight } from "lucide-react";
+import { Bell, ChevronRight, Clock, MapPin, Tag } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
+import { formatDateUTC, formatTimeUTC } from "../lib/dateUtils";
+import { createPortal } from "react-dom";
 
 // ── Interfaces ─────────────────────────────────────────────────────────
 interface Comite {
@@ -48,6 +50,8 @@ export default function Home() {
   const [committees, setCommittees] = useState<Comite[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [hoveredEvent, setHoveredEvent] = useState<any>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
 
   // Load data from Supabase
@@ -123,10 +127,30 @@ export default function Home() {
       end: ev.end_time,
       backgroundColor: ev.committees?.color_hex ?? "#2997ff",
       borderColor: ev.committees?.color_hex ?? "#2997ff",
-      extendedProps: { committee_id: ev.committee_id },
+      extendedProps: { 
+        committee_id: ev.committee_id,
+        committeeName: ev.committees?.name,
+        motto: ev.motto,
+        startTime: ev.start_time,
+        endTime: ev.end_time
+      },
     }));
 
   // ── Vista / transiciones ───────────────────────────────────────────
+  // Para que el calendario resalte "Hoy" correctamente según la hora local 
+  // pero mantenga la lógica UTC para los eventos.
+  const getCalendarNow = () => {
+    const local = new Date();
+    // Formato: YYYY-MM-DDTHH:mm:ss (sin Z para que FC lo trate como su tiempo base)
+    const year = local.getFullYear();
+    const month = String(local.getMonth() + 1).padStart(2, '0');
+    const day = String(local.getDate()).padStart(2, '0');
+    const hours = String(local.getHours()).padStart(2, '0');
+    const minutes = String(local.getMinutes()).padStart(2, '0');
+    const seconds = String(local.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  };
+
   useEffect(() => {
     if (calendarRef.current) {
       const api = calendarRef.current.getApi();
@@ -177,17 +201,124 @@ export default function Home() {
       <button
         onClick={() => toggleComite(comite.id)}
         className={cn(
-          "rounded-full font-semibold cursor-pointer transition-all active:scale-95",
+          "rounded-full font-bold cursor-pointer transition-all active:scale-95 border",
           sizeClasses,
           isActive
-            ? "bg-gray-800 text-white ring-2 ring-gray-800 ring-offset-1"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            ? "shadow-sm ring-2 ring-offset-1"
+            : "hover:shadow-sm"
         )}
-        style={isActive ? { backgroundColor: comite.color_hex, color: 'white' } : {}}
+        style={{ 
+          backgroundColor: isActive ? comite.color_hex : `${comite.color_hex}1a`, // 1a = ~10% opacity
+          color: isActive ? 'white' : comite.color_hex,
+          borderColor: isActive ? comite.color_hex : `${comite.color_hex}40`, // 40 = ~25% opacity
+          ringColor: comite.color_hex
+        }}
       >
         {comite.name}
       </button>
     );
+  };
+
+  // ── Handlers de Tooltip ──────────────────────────────────────────
+  const handleMouseEnter = (info: any) => {
+    if (isMobile) return;
+    const { event, jsEvent } = info;
+    setHoveredEvent(event);
+    setTooltipPos({ x: jsEvent.clientX, y: jsEvent.clientY });
+  };
+
+  const handleMouseMove = (info: any) => {
+    if (isMobile) return;
+    setTooltipPos({ x: info.jsEvent.clientX, y: info.jsEvent.clientY });
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredEvent(null);
+  };
+
+  // ── Custom Event Content para todas las vistas ─────────────────────
+  const renderEventContent = (eventInfo: any) => {
+    // Vista de LISTA (Detalle completo)
+    if (eventInfo.view.type.includes('list')) {
+      return (
+        <div className="flex flex-col gap-1 py-1 w-full">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold text-[#1d1d1f] text-sm">{eventInfo.event.title}</span>
+            <span 
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
+              style={{ backgroundColor: eventInfo.event.backgroundColor }}
+            >
+              {eventInfo.event.extendedProps.committeeName || 'General'}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-[#86868b]">
+            <div className="flex items-center gap-1">
+              <Clock size={12} className="text-apple-blue" />
+              {formatTimeUTC(eventInfo.event.extendedProps.startTime)} - {formatTimeUTC(eventInfo.event.extendedProps.endTime)}
+            </div>
+            {eventInfo.event.extendedProps.motto && (
+              <div className="flex items-center gap-1 italic underline decoration-gray-200 decoration-1">
+                <Tag size={12} className="text-gray-400" />
+                "{eventInfo.event.extendedProps.motto}"
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Vista de SEMANA / DÍA (Espacio vertical)
+    if (eventInfo.view.type.includes('timeGrid')) {
+      return (
+        <div className="flex flex-col gap-1 p-1 w-full h-full overflow-hidden leading-tight">
+          <span className="font-bold text-white text-[11px] leading-none mb-0.5">
+            {eventInfo.event.title}
+          </span>
+          <div className="flex flex-col gap-0.5 opacity-90">
+            <span className="text-[9px] font-bold bg-white/20 text-white px-1.5 py-0.5 rounded-sm w-fit">
+              {eventInfo.event.extendedProps.committeeName || 'General'}
+            </span>
+            <div className="flex items-center gap-1 text-[9px] text-white font-medium">
+              <Clock size={10} strokeWidth={3} />
+              {formatTimeUTC(eventInfo.event.extendedProps.startTime)}
+            </div>
+          </div>
+          {eventInfo.event.extendedProps.motto && (
+            <div className="mt-1 border-t border-white/20 pt-1 italic text-[9px] text-white/90 truncate">
+              "{eventInfo.event.extendedProps.motto}"
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Vista de MES / REJILLA (Compacto)
+    return (
+      <div className="flex items-center gap-1 px-1 py-0.5 overflow-hidden w-full group">
+        <div 
+          className="w-2 h-2 rounded-full shrink-0 shadow-sm"
+          style={{ backgroundColor: eventInfo.event.backgroundColor }}
+        />
+        <span className="text-[9px] md:text-[10px] font-bold text-[#1d1d1f] shrink-0 opacity-80">
+          {formatTimeUTC(eventInfo.event.extendedProps.startTime)}
+        </span>
+        <span className="text-[10px] md:text-[11px] font-medium text-[#1d1d1f] truncate leading-tight">
+          {eventInfo.event.title}
+        </span>
+      </div>
+    );
+  };
+
+  const handleEventClick = (info: any) => {
+    if (isMobile) {
+      const { event, jsEvent } = info;
+      if (hoveredEvent?.id === event.id) {
+        setHoveredEvent(null);
+      } else {
+        setHoveredEvent(event);
+        setTooltipPos({ x: jsEvent.clientX, y: jsEvent.clientY });
+      }
+    }
   };
 
   const TodosChip = ({ size = "md" }: { size?: "sm" | "md" }) => {
@@ -227,7 +358,7 @@ export default function Home() {
 
         {/* Filtros inline en mobile */}
         {isMobile && (
-          <div className="flex gap-1.5 flex-wrap px-1 mb-3 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1.5 flex-wrap px-1 py-1 mb-3 overflow-x-auto scrollbar-hide items-center">
             <TodosChip size="sm" />
             {committees.map(c => <ComiteChip key={c.id} comite={c} size="sm" />)}
           </div>
@@ -246,12 +377,22 @@ export default function Home() {
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             initialView="dayGridMonth"
+            timeZone="UTC"
+            now={getCalendarNow()}
             headerToolbar={isMobile ? mobileToolbar : desktopToolbar}
             events={filteredEvents}
             height={isMobile ? "auto" : "100%"}
             contentHeight={isMobile ? "auto" : undefined}
             dayMaxEvents={isMobile ? 2 : true}
             locale="es"
+            navLinks={true}
+            navLinkDayClick={(date) => {
+              if (calendarRef.current) {
+                const api = calendarRef.current.getApi();
+                api.gotoDate(date);
+                changeViewSmooth('timeGridDay');
+              }
+            }}
             fixedWeekCount={false}
             buttonText={{
               today: 'Hoy',
@@ -261,8 +402,77 @@ export default function Home() {
               list: 'Lista'
             }}
             viewDidMount={handleViewDidMount}
+            eventMouseEnter={handleMouseEnter}
+            eventMouseMove={handleMouseMove}
+            eventMouseLeave={handleMouseLeave}
+            eventClick={handleEventClick}
+            eventContent={renderEventContent}
+            moreLinkText={(n) => `+${n} más`}
+            moreLinkClick="popover"
           />
         </div>
+        
+        {/* Portal de Tooltip Inteligente */}
+        {hoveredEvent && createPortal(
+          <div 
+            className="fixed z-[9999] pointer-events-none"
+            onClick={(e) => isMobile && setHoveredEvent(null)}
+            style={{ 
+              left: tooltipPos.x + 15, 
+              top: tooltipPos.y + 15,
+              transform: `translate(${
+                tooltipPos.x + 240 > window.innerWidth ? (isMobile ? '-105%' : '-100%') : '0'
+              }, ${
+                tooltipPos.y + 180 > window.innerHeight ? (isMobile ? '-105%' : '-100%') : '0'
+              })`
+            }}
+          >
+            <div className={cn(
+              "bg-white rounded-2xl shadow-2xl border border-gray-100 p-4 w-60 animate-in fade-in zoom-in duration-200 pointer-events-auto",
+              isMobile && "ring-4 ring-black/5"
+            )}>
+              {isMobile && (
+                <button 
+                  onClick={() => setHoveredEvent(null)}
+                  className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-gray-500"
+                >
+                  ×
+                </button>
+              )}
+              <div 
+                className="w-full h-1.5 rounded-full mb-3" 
+                style={{ backgroundColor: hoveredEvent.backgroundColor }}
+              />
+              <h4 className="font-bold text-[#1d1d1f] text-sm mb-2 leading-tight">
+                {hoveredEvent.title}
+              </h4>
+              
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-[#86868b]">
+                  <Clock size={14} className="text-apple-blue" />
+                  <span>
+                    {formatTimeUTC(hoveredEvent.extendedProps.startTime)} - {formatTimeUTC(hoveredEvent.extendedProps.endTime)}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2 text-xs text-[#1d1d1f] font-medium">
+                  <div 
+                    className="w-2 h-2 rounded-full" 
+                    style={{ backgroundColor: hoveredEvent.backgroundColor }} 
+                  />
+                  <span>{hoveredEvent.extendedProps.committeeName || 'General'}</span>
+                </div>
+
+                {hoveredEvent.extendedProps.motto && (
+                  <div className="mt-3 p-2 bg-gray-50 rounded-lg italic text-[11px] text-[#86868b] border-l-2 border-gray-200">
+                    "{hoveredEvent.extendedProps.motto}"
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
 
       {/* Panel Lateral Derecho — Solo visible en desktop */}
@@ -297,11 +507,7 @@ export default function Home() {
                       <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
                     )}
                     <p className="text-xs text-[#86868b] mt-2">
-                      {new Date(notice.created_at).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
+                      {formatDateUTC(notice.created_at)}
                     </p>
                   </div>
                 ))
@@ -333,11 +539,7 @@ export default function Home() {
                         <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">{notice.content}</p>
                       )}
                       <p className="text-xs text-[#86868b] mt-1">
-                        {new Date(notice.created_at).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
+                        {formatDateUTC(notice.created_at)}
                       </p>
                     </div>
                     <ChevronRight size={16} className="text-gray-300 ml-2 shrink-0" />

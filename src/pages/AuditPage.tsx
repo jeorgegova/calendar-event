@@ -3,6 +3,7 @@ import { Eye, Search, Filter, Calendar, User, Settings, FileText } from "lucide-
 import { Button } from "../components/ui/Button";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
+import { formatDateUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
 
 interface AuditLog {
@@ -17,6 +18,119 @@ interface AuditLog {
     email: string;
   };
 }
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Título",
+  content: "Contenido",
+  start_time: "Inicio",
+  end_time: "Fin",
+  motto: "Lema",
+  committee_id: "Comité",
+  event_type_id: "Tipo de Evento",
+  is_active: "Estado Activo",
+  role: "Rol",
+  active_until: "Activo hasta",
+  full_name: "Nombre Completo",
+  email: "Correo",
+  name: "Nombre",
+  color_hex: "Color"
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATE: "Creación",
+  UPDATE: "Edición",
+  DELETE: "Eliminación"
+};
+
+const ENTITY_LABELS: Record<string, string> = {
+  events: "Evento",
+  committees: "Comité",
+  notices: "Aviso",
+  profiles: "Usuario",
+  event_types: "Tipo de Evento",
+  request_types: "Tipo de Solicitud"
+};
+
+const formatAuditValue = (key: string, value: any): string => {
+  if (value === null || value === undefined) return "N/A";
+  if (typeof value === 'boolean') return value ? "Sí" : "No";
+  
+  // Si es una fecha (ISO string simple o con Z)
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+    return formatDateUTC(value, { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  }
+  
+  return String(value);
+};
+
+const RenderAuditDetails = ({ log }: { log: AuditLog }) => {
+  if (!log.details) return null;
+
+  const { old: oldData, new: newData } = log.details;
+  const isCreate = log.action.includes('CREATE');
+  const isUpdate = log.action.includes('UPDATE');
+  const isDelete = log.action.includes('DELETE');
+
+  const ignoredFields = ['id', 'created_at', 'updated_at', 'created_by', 'user_id'];
+
+  if (isUpdate && oldData && newData) {
+    const changes = Object.keys(newData).filter(key => 
+      !ignoredFields.includes(key) && 
+      JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])
+    );
+
+    if (changes.length === 0) return null;
+
+    return (
+      <div className="mt-3 space-y-2">
+        {changes.map(key => (
+          <div key={key} className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-semibold text-[#1d1d1f] w-24">
+              {FIELD_LABELS[key] || key}:
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded-md line-through text-xs">
+                {formatAuditValue(key, oldData[key])}
+              </span>
+              <span className="text-gray-400">→</span>
+              <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-md font-medium text-xs">
+                {formatAuditValue(key, newData[key])}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const dataToShow = isCreate ? newData : (isDelete ? oldData : null);
+  if (!dataToShow) return null;
+
+  const fields = Object.keys(dataToShow).filter(key => 
+    !ignoredFields.includes(key) && dataToShow[key] !== null
+  );
+
+  return (
+    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+      {fields.map(key => (
+        <div key={key} className="flex items-start gap-2 text-xs">
+          <span className="font-medium text-[#86868b] min-w-[80px]">
+            {FIELD_LABELS[key] || key}:
+          </span>
+          <span className="text-[#1d1d1f] font-medium truncate">
+            {formatAuditValue(key, dataToShow[key])}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export default function AuditPage() {
   const { hasPermission, profile } = useUserProfile();
@@ -147,7 +261,9 @@ export default function AuditPage() {
             >
               <option value="">Todas las acciones</option>
               {uniqueActions.map(action => (
-                <option key={action} value={action}>{action}</option>
+                <option key={action} value={action}>
+                  {ACTION_LABELS[action] || action}
+                </option>
               ))}
             </select>
 
@@ -158,7 +274,9 @@ export default function AuditPage() {
             >
               <option value="">Todas las entidades</option>
               {uniqueEntities.map(entity => (
-                <option key={entity} value={entity}>{entity}</option>
+                <option key={entity} value={entity}>
+                  {ENTITY_LABELS[entity] || entity}
+                </option>
               ))}
             </select>
 
@@ -191,11 +309,11 @@ export default function AuditPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={cn("px-2 py-1 text-xs font-medium rounded-full", getActionColor(log.action))}>
-                        {log.action.replace(/_/g, ' ')}
+                      <span className={cn("px-2 py-1 text-xs font-medium rounded-full uppercase tracking-wider", getActionColor(log.action))}>
+                        {ACTION_LABELS[log.action.split('_')[0]] || log.action.split('_')[0]}
                       </span>
-                      <span className="text-xs text-[#86868b] bg-gray-100 px-2 py-1 rounded-full">
-                        {log.entity_type}
+                      <span className="text-xs text-[#86868b] bg-gray-100 px-3 py-1 rounded-full font-medium">
+                        {ENTITY_LABELS[log.entity_type] || log.entity_type}
                       </span>
                     </div>
 
@@ -206,7 +324,7 @@ export default function AuditPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar size={14} />
-                        {new Date(log.created_at).toLocaleString('es-ES', {
+                        {formatDateUTC(log.created_at, {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',
@@ -217,13 +335,7 @@ export default function AuditPage() {
                       </div>
                     </div>
 
-                    {log.details && (
-                      <div className="bg-gray-50 rounded-xl p-3 mt-3">
-                        <pre className="text-xs text-gray-600 whitespace-pre-wrap overflow-x-auto">
-                          {JSON.stringify(log.details, null, 2)}
-                        </pre>
-                      </div>
-                    )}
+                    <RenderAuditDetails log={log} />
                   </div>
                 </div>
               </div>

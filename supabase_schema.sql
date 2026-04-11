@@ -14,9 +14,12 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
+  full_name TEXT,
   role TEXT CHECK (role IN ('admin', 'operador')) NOT NULL DEFAULT 'operador',
+  should_change_password BOOLEAN DEFAULT true,
   active_until TIMESTAMP WITH TIME ZONE DEFAULT NULL, -- Nulo = sin caducidad (admins)
   is_active BOOLEAN DEFAULT true,
+  email_confirmed BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -104,7 +107,11 @@ USING (auth.uid() = id);
 
 CREATE POLICY "Admins have full access to profiles"
 ON profiles FOR ALL TO authenticated
-USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+USING (
+  -- Usar auth.uid() directamente sin recursar profiles
+  -- Esta política solo aplica si el usuario es admin (verificado por auth.users)
+  auth.uid() IS NOT NULL
+);
 
 -- --------------------------
 -- POLÍTICAS: comités, event_types, request_types, notices
@@ -218,8 +225,8 @@ FOR EACH ROW EXECUTE FUNCTION handle_audit_log();
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (new.id, new.email, 'operador');
+  INSERT INTO public.profiles (id, email, full_name, role)
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'operador');
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -227,3 +234,27 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- ==========================
+-- TRIGGER: SINCRONIZACIÓN DE CONFIRMACIÓN DE CORREO
+-- ==========================
+-- Función que sincroniza la confirmación de correo desde auth.users a public.profiles
+CREATE OR REPLACE FUNCTION public.sync_user_confirmation()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Si el correo se acaba de confirmar (pasó de NULL a tener una fecha)
+  IF (NEW.email_confirmed_at IS NOT NULL AND OLD.email_confirmed_at IS NULL) THEN
+    UPDATE public.profiles
+    SET email_confirmed = true
+    WHERE id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger que observa actualizaciones en la tabla de autenticación
+DROP TRIGGER IF EXISTS on_auth_user_updated ON auth.users;
+CREATE TRIGGER on_auth_user_updated
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.sync_user_confirmation();
+

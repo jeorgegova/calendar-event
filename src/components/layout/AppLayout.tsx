@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
-import { Calendar, Settings, Users, Bell, LogOut, Tags, List, CalendarDays, Clock, UserCircle, Cog } from "lucide-react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Calendar, Settings, Users, Bell, LogOut, Tags, List, CalendarDays, Clock, UserCircle, Cog, Loader2, AlertTriangle, ChevronRight } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { supabase } from "../../lib/supabase";
 
@@ -8,7 +8,8 @@ import { LoginModal } from "../auth/LoginModal";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { useIsMobile } from "../../hooks/useIsMobile";
-import { useUserProfile } from "../../hooks/useUserProfile";
+import { useAuth } from "../../context/AuthContext";
+import { formatDateUTC } from "../../lib/dateUtils";
 
 const NAV_ITEMS = [
   { label: "Calendario", icon: Calendar, path: "/" },
@@ -18,12 +19,17 @@ const NAV_ITEMS = [
   { label: "Parámetros", icon: Cog, path: "/parametros", roles: ['admin'] },
   { label: "Usuarios", icon: Users, path: "/usuarios", roles: ['admin'] },
   { label: "Auditoría", icon: Settings, path: "/auditoria", roles: ['admin'] },
+  { label: "Mi Perfil", icon: UserCircle, path: "/perfil", roles: ['admin', 'operador'] },
 ];
 
 export const AppLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { isAuthenticated, hasPermission, profile } = useUserProfile();
+  const { isAuthenticated, hasPermission, profile, loading: authLoading } = useAuth();
+
+  // Sidebar should only appear when profile is fully loaded
+  const profileReady = profile !== null;
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
   const [activeView, setActiveView] = useState("dayGridMonth");
@@ -55,8 +61,9 @@ export const AppLayout = () => {
   const confirmLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // Recargar la página para asegurar que todos los componentes se actualicen
-      window.location.reload();
+      setLogoutModalOpen(false);
+      // Redirigir al inicio para evitar quedarse en una página protegida
+      navigate("/");
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
@@ -93,67 +100,55 @@ export const AppLayout = () => {
         isOpen={isLogoutModalOpen}
         onClose={() => setLogoutModalOpen(false)}
         title={
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-orange-500/10 flex items-center justify-center">
-              <LogOut size={20} className="text-orange-600" />
+          <div className="flex flex-col items-center text-center gap-4">
+            <div className="w-16 h-16 rounded-3xl bg-red-50 flex items-center justify-center">
+              <LogOut size={32} className="text-red-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[#1d1d1f] tracking-tight">
+              <h2 className="text-2xl font-bold text-[#1d1d1f] tracking-tight">
                 Cerrar Sesión
               </h2>
-              <p className="text-sm text-[#86868b] mt-0.5">
-                ¿Estás seguro de que quieres cerrar tu sesión?
+              <p className="text-[15px] text-[#86868b] mt-1">
+                ¿Estás seguro que deseas cerrar sesión?
               </p>
             </div>
           </div>
         }
-        className="max-w-sm"
+        className="max-w-[400px]"
       >
-        <div className="space-y-6">
-          <div className="p-4 bg-orange-50 border border-orange-100 rounded-2xl">
-            <div className="flex items-start gap-3">
-              <div className="w-5 h-5 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-              </div>
-              <div>
-                <p className="text-sm text-orange-800 font-medium">Atención</p>
-                <p className="text-xs text-orange-700 mt-1">
-                  Se cerrará tu sesión actual y tendrás que volver a iniciar sesión para continuar.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button
-              onClick={() => setLogoutModalOpen(false)}
-              variant="outline"
-              className="flex-1"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={confirmLogout}
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
-            >
-              <LogOut size={16} className="mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
+        <div className="flex items-center gap-3 pt-4">
+          <button
+            onClick={() => setLogoutModalOpen(false)}
+            className="flex-1 px-4 py-3.5 rounded-2xl text-[15px] font-semibold text-[#1d1d1f] bg-gray-100 hover:bg-gray-200 active:scale-[0.98] transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={confirmLogout}
+            className="flex-1 px-4 py-3.5 rounded-2xl text-[15px] font-semibold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          >
+            <LogOut size={18} />
+            Cerrar
+          </button>
         </div>
       </Modal>
 
       {/* ── Top Bar (Desktop sin auth + Mobile siempre) ── */}
       <div className={cn(
         "flex items-center justify-between px-4 md:px-8 py-3 bg-white/90 backdrop-blur-xl border-b border-gray-200/80 sticky top-0 z-40",
-        // En desktop, ocultar si ya está autenticado (el sidebar tiene el branding)
-        isAuthenticated && !isMobile && "hidden"
+        // En desktop, ocultar si ya tiene perfil (el sidebar tiene el branding)
+        profileReady && !isMobile && "hidden"
       )}>
         <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-apple-blue to-[#00c6ff] tracking-tight">
           EventCalendar
         </h1>
         <div className="flex items-center gap-2">
-          {!isAuthenticated ? (
+          {authLoading ? (
+            // Spinner sutil mientras carga la sesión
+            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
+              <Loader2 size={18} className="text-[#86868b] animate-spin" />
+            </div>
+          ) : !profileReady ? (
             <>
               {/* Botón de silueta circular para ingresar */}
               <button
@@ -180,7 +175,7 @@ export const AppLayout = () => {
 
       {/* Backdrop para el menú móvil */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -189,11 +184,11 @@ export const AppLayout = () => {
       {/* ── Contenido principal (sidebar + main) ── */}
       <div className="flex-1 flex flex-row">
 
-        {/* Sidebar — Solo visible cuando está autenticado (o como slide-over en mobile) */}
-        {(isAuthenticated || isMobileMenuOpen) && (
+        {/* Sidebar — Solo visible cuando el perfil está cargado (o como slide-over en mobile) */}
+        {(profileReady || isMobileMenuOpen) && (
           <aside
             className={cn(
-              "fixed md:sticky top-0 left-0 h-screen w-72 bg-white/95 backdrop-blur-xl border-r border-[#e5e5ea] border-opacity-60 z-50 flex flex-col shadow-2xl md:shadow-sm transition-transform duration-300 ease-out",
+              "fixed md:sticky top-0 left-0 h-screen w-72 bg-white/95 backdrop-blur-xl z-50 flex flex-col shadow-2xl md:shadow-sm transition-transform duration-300 ease-out",
               isMobile
                 ? (isMobileMenuOpen ? "translate-x-0" : "-translate-x-full")
                 : "translate-x-0"
@@ -204,24 +199,29 @@ export const AppLayout = () => {
                 <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-apple-blue to-[#00c6ff] tracking-tight">
                   EventCalendar
                 </h1>
-                <div className="text-xs text-[#86868b] mt-1">
+                <div className="flex flex-col mt-1">
                   {profile ? (
                     <>
-                      {profile.role === 'admin' ? 'Administrador' : 'Operador'}
-                      {profile.role === 'operador' && profile.active_until && (
-                        <span className="ml-2 text-orange-600">
-                          (hasta {new Date(profile.active_until).toLocaleDateString('es-ES')})
-                        </span>
-                      )}
+                      <span className="text-sm font-semibold text-[#1d1d1f] truncate w-48">
+                        {profile.full_name || 'Nuevo Usuario'}
+                      </span>
+                      <div className="text-[10px] text-[#86868b] flex items-center gap-1">
+                        {profile.role === 'admin' ? 'Administrador' : 'Operador'}
+                        {profile.role === 'operador' && profile.active_until && (
+                          <span className="text-orange-600">
+                            (vence: {formatDateUTC(profile.active_until).split(' ')[0]})
+                          </span>
+                        )}
+                      </div>
                     </>
                   ) : (
-                    'Cargando perfil...'
+                    <span className="text-xs text-[#86868b]">Cargando perfil...</span>
                   )}
                 </div>
               </div>
               {isMobileMenuOpen && (
                 <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                 </button>
               )}
             </div>
@@ -255,10 +255,10 @@ export const AppLayout = () => {
                 );
               })}
             </nav>
-            
+
             <div className="p-4 border-t border-gray-100 bg-white">
-              {isAuthenticated ? (
-                <button onClick={handleLogout} className="flex items-center justify-center md:justify-start gap-3 w-full px-3 py-3 rounded-xl text-[15px] font-medium text-[#ff3b30] bg-[#ff3b30]/5 hover:bg-[#ff3b30]/15 active:scale-95 transition-all">
+              {profileReady ? (
+                <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full px-3 py-3 rounded-xl text-[15px] font-medium text-[#ff3b30] bg-[#ff3b30]/5 hover:bg-[#ff3b30]/15 active:scale-95 transition-all">
                   <LogOut size={20} />
                   Cerrar Sesión
                 </button>
@@ -270,7 +270,23 @@ export const AppLayout = () => {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 relative flex flex-col min-h-[calc(100vh-52px)] max-w-full overflow-hidden pb-20 md:pb-0">
+        <main className="flex-1 relative flex flex-col min-h-[calc(100vh-52px)] max-w-full overflow-hidden pb-20 md:pb-0 bg-[#f5f5f7]">
+          {/* Alerta de Seguridad (Cambio de contraseña forzado) */}
+          {isAuthenticated && profile?.should_change_password && (
+            <div className="bg-orange-500 text-white px-6 py-3 flex items-center justify-between shadow-lg border-b border-orange-600 z-10">
+              <div className="flex items-center gap-3">
+                <AlertTriangle size={18} className="animate-pulse" />
+                <p className="text-sm font-bold">Acción Requerida: Cambio de contraseña necesario por seguridad</p>
+              </div>
+              <Link 
+                to="/perfil" 
+                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0"
+              >
+                Ir a mi perfil
+                <ChevronRight size={14} />
+              </Link>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

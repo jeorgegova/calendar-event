@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag, Info, CheckCircle2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
+import { formatDateUTC, formatTimeUTC, toUTCInputFormat, fromInputToUTC } from "../lib/dateUtils";
+import { cn } from "../lib/utils";
 
 
 interface Committee {
@@ -144,8 +146,8 @@ export default function EventsPage() {
             title: formData.title,
             committee_id: formData.committee_id || null,
             event_type_id: formData.event_type_id || null,
-            start_time: formData.start_time,
-            end_time: formData.end_time,
+            start_time: fromInputToUTC(formData.start_time),
+            end_time: fromInputToUTC(formData.end_time),
             motto: formData.motto || null,
           })
           .eq('id', editingEvent.id);
@@ -178,8 +180,8 @@ export default function EventsPage() {
             title: formData.title,
             committee_id: formData.committee_id || null,
             event_type_id: formData.event_type_id || null,
-            start_time: formData.start_time,
-            end_time: formData.end_time,
+            start_time: fromInputToUTC(formData.start_time),
+            end_time: fromInputToUTC(formData.end_time),
             motto: formData.motto || null,
           }])
           .select()
@@ -218,8 +220,8 @@ export default function EventsPage() {
       title: event.title,
       committee_id: event.committee_id || "",
       event_type_id: event.event_type_id || "",
-      start_time: new Date(event.start_time).toISOString().slice(0, 16),
-      end_time: new Date(event.end_time).toISOString().slice(0, 16),
+      start_time: toUTCInputFormat(event.start_time),
+      end_time: toUTCInputFormat(event.end_time),
       motto: event.motto || "",
       request_type_ids: event.event_requests?.map(er => er.request_types.id) || [],
     });
@@ -269,6 +271,81 @@ export default function EventsPage() {
     }));
   };
 
+  // ── Helpers para manejo de Fecha/Hora ────────────────────────────
+  const splitDateTime = (isoString: string) => {
+    if (!isoString) return { date: "", time: "" };
+    const [date, time] = isoString.split('T');
+    return { date: date || "", time: (time || "").substring(0, 5) };
+  };
+
+  const handleStartDateTimeChange = (newDate?: string, newTime?: string) => {
+    const { date: currentDate, time: currentTime } = splitDateTime(formData.start_time);
+    const d = newDate !== undefined ? newDate : currentDate;
+    const t = newTime !== undefined ? newTime : currentTime;
+    const newStart = `${d}T${t || "00:00"}`;
+    
+    setFormData(prev => {
+      let newEnd = prev.end_time;
+      // Sincronización inteligente: Si el fin es vacío o anterior al nuevo inicio
+      if (!newEnd || newEnd < newStart) {
+        newEnd = newStart;
+      }
+      return { ...prev, start_time: newStart, end_time: newEnd };
+    });
+  };
+
+  const handleEndDateTimeChange = (newDate?: string, newTime?: string) => {
+    const { date: currentDate, time: currentTime } = splitDateTime(formData.end_time);
+    const d = newDate !== undefined ? newDate : currentDate;
+    const t = newTime !== undefined ? newTime : currentTime;
+    const newEnd = `${d}T${t || "00:00"}`;
+
+    if (newEnd < formData.start_time) {
+      // No permitir fin anterior a inicio
+      return;
+    }
+
+    setFormData(prev => ({ ...prev, end_time: newEnd }));
+  };
+
+  // Generar opciones para selectores de tiempo
+  const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+  const minutes = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
+
+  const TimePicker = ({ 
+    value, 
+    onChange, 
+    label 
+  }: { 
+    value: string, 
+    onChange: (newTime: string) => void,
+    label: string 
+  }) => {
+    const [h, m] = value.split(':');
+    return (
+      <div className="flex flex-col gap-1.5 flex-1">
+        <label className="text-[11px] font-bold text-[#86868b] uppercase tracking-wider pl-1">{label}</label>
+        <div className="flex gap-1 items-center bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+          <select
+            value={h}
+            onChange={(e) => onChange(`${e.target.value}:${m || '00'}`)}
+            className="flex-1 bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer py-1 pl-2"
+          >
+            {hours.map(hour => <option key={hour} value={hour}>{hour}</option>)}
+          </select>
+          <span className="text-gray-300 font-bold">:</span>
+          <select
+            value={m}
+            onChange={(e) => onChange(`${h || '00'}:${e.target.value}`)}
+            className="flex-1 bg-transparent border-none text-sm font-semibold focus:ring-0 cursor-pointer py-1 pr-2"
+          >
+            {minutes.map(min => <option key={min} value={min}>{min}</option>)}
+          </select>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
@@ -310,7 +387,7 @@ export default function EventsPage() {
                     <div className="flex items-center gap-2">
                       <Calendar size={14} className="text-apple-blue" />
                       <span className="text-[#86868b]">
-                        {new Date(event.start_time).toLocaleDateString('es-ES', {
+                        {formatDateUTC(event.start_time, {
                           weekday: 'short',
                           year: 'numeric',
                           month: 'short',
@@ -324,13 +401,7 @@ export default function EventsPage() {
                     <div className="flex items-center gap-2">
                       <Clock size={14} className="text-apple-blue" />
                       <span className="text-[#86868b]">
-                        {new Date(event.start_time).toLocaleTimeString('es-ES', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })} - {new Date(event.end_time).toLocaleTimeString('es-ES', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
+                        {formatTimeUTC(event.start_time)} - {formatTimeUTC(event.end_time)}
                       </span>
                     </div>
 
@@ -420,127 +491,172 @@ export default function EventsPage() {
         className="max-w-2xl"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-2">
-                Título del Evento
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
-                placeholder="Ej: Reunión de Jóvenes"
-              />
+          {/* Sección 1: Información Básica */}
+          <div className="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100/50 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-apple-blue/10 flex items-center justify-center">
+                <Info size={16} className="text-apple-blue" />
+              </div>
+              <h3 className="font-bold text-[#1d1d1f]">Información del Evento</h3>
             </div>
 
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                  Título del Evento
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all"
+                  placeholder="Ej: Reunión de Jóvenes"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                    Comité
+                  </label>
+                  <select
+                    value={formData.committee_id}
+                    onChange={(e) => setFormData({ ...formData, committee_id: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all text-sm"
+                  >
+                    <option value="">Opcional</option>
+                    {committees.map(committee => (
+                      <option key={committee.id} value={committee.id}>{committee.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                    Tipo de Evento
+                  </label>
+                  <select
+                    value={formData.event_type_id}
+                    onChange={(e) => setFormData({ ...formData, event_type_id: e.target.value })}
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all text-sm"
+                  >
+                    <option value="">Opcional</option>
+                    {eventTypes.map(type => (
+                      <option key={type.id} value={type.id}>{type.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sección 2: Programación */}
+          <div className="bg-apple-blue/5 p-6 rounded-[2rem] border border-apple-blue/10 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 rounded-xl bg-apple-blue/10 flex items-center justify-center">
+                <Calendar size={16} className="text-apple-blue" />
+              </div>
+              <h3 className="font-bold text-[#1d1d1f]">Horario</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Inicio */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-[#86868b] uppercase tracking-tight pl-1 flex items-center gap-2">
+                  <CheckCircle2 size={12} className="text-green-500" />
+                  Inicio
+                </label>
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="date"
+                    required
+                    value={splitDateTime(formData.start_time).date}
+                    onChange={(e) => handleStartDateTimeChange(e.target.value, undefined)}
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm font-medium text-sm"
+                  />
+                  <TimePicker 
+                    label="Hora de Inicio"
+                    value={splitDateTime(formData.start_time).time} 
+                    onChange={(t) => handleStartDateTimeChange(undefined, t)} 
+                  />
+                </div>
+              </div>
+
+              {/* Fin */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-[#86868b] uppercase tracking-tight pl-1 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-apple-blue" />
+                  Término
+                </label>
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="date"
+                    required
+                    min={splitDateTime(formData.start_time).date}
+                    value={splitDateTime(formData.end_time).date}
+                    onChange={(e) => handleEndDateTimeChange(e.target.value, undefined)}
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm font-medium text-sm"
+                  />
+                  <TimePicker 
+                    label="Hora de Término"
+                    value={splitDateTime(formData.end_time).time} 
+                    onChange={(t) => handleEndDateTimeChange(undefined, t)} 
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sección 3: Detalles y Solicitudes */}
+          <div className="space-y-4 px-2">
             <div>
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-2">
-                Comité
-              </label>
-              <select
-                value={formData.committee_id}
-                onChange={(e) => setFormData({ ...formData, committee_id: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
-              >
-                <option value="">Seleccionar comité (opcional)</option>
-                {committees.map(committee => (
-                  <option key={committee.id} value={committee.id}>
-                    {committee.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-2">
-                Tipo de Evento
-              </label>
-              <select
-                value={formData.event_type_id}
-                onChange={(e) => setFormData({ ...formData, event_type_id: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
-              >
-                <option value="">Seleccionar tipo (opcional)</option>
-                {eventTypes.map(type => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-2">
-                Fecha y Hora de Inicio
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={formData.start_time}
-                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-2">
-                Fecha y Hora de Fin
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={formData.end_time}
-                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-2">
+              <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
                 Lema del Evento (opcional)
               </label>
               <input
                 type="text"
                 value={formData.motto}
                 onChange={(e) => setFormData({ ...formData, motto: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue transition-all text-sm"
                 placeholder="Ej: Unidos en Fe"
               />
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-[#1d1d1f] mb-3">
+            <div>
+              <label className="block text-xs font-bold text-[#86868b] mb-3 uppercase tracking-tight pl-1">
                 Solicitudes Requeridas
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="flex flex-wrap gap-2">
                 {requestTypes.map(requestType => (
-                  <label key={requestType.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.request_type_ids.includes(requestType.id)}
-                      onChange={() => toggleRequestType(requestType.id)}
-                      className="w-4 h-4 text-apple-blue bg-gray-100 border-gray-300 rounded focus:ring-apple-blue"
-                    />
-                    <span className="text-sm text-[#1d1d1f]">{requestType.name}</span>
-                  </label>
+                  <button
+                    key={requestType.id}
+                    type="button"
+                    onClick={() => toggleRequestType(requestType.id)}
+                    className={cn(
+                      "px-4 py-2 rounded-full text-xs font-semibold border transition-all active:scale-95",
+                      formData.request_type_ids.includes(requestType.id)
+                        ? "bg-apple-blue border-apple-blue text-white shadow-md shadow-apple-blue/20"
+                        : "bg-white border-gray-100 text-gray-500 hover:border-gray-200"
+                    )}
+                  >
+                    {requestType.name}
+                  </button>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
-              {editingEvent ? "Guardar Cambios" : "Crear Evento"}
-            </Button>
+          <div className="flex gap-3 pt-6 border-t border-gray-100 sticky bottom-0 bg-white pb-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => setIsModalOpen(false)}
-              className="flex-1"
+              className="flex-1 rounded-2xl py-6"
             >
               Cancelar
+            </Button>
+            <Button type="submit" className="flex-1 rounded-2xl py-6 shadow-xl shadow-apple-blue/20">
+              {editingEvent ? "Guardar Cambios" : "Crear Evento"}
             </Button>
           </div>
         </form>

@@ -23,6 +23,7 @@ export default function ParametersPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'event-types' | 'request-types'>('event-types');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingItem, setEditingItem] = useState<EventType | RequestType | null>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -65,6 +66,9 @@ export default function ParametersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
     try {
       const table = activeTab === 'event-types' ? 'event_types' : 'request_types';
 
@@ -89,6 +93,8 @@ export default function ParametersPage() {
       resetForm();
     } catch (error) {
       console.error('Error saving item:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -286,8 +292,8 @@ export default function ParametersPage() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
-              {editingItem ? "Guardar Cambios" : "Crear"}
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? "Guardando..." : (editingItem ? "Guardar Cambios" : "Crear")}
             </Button>
             <Button
               type="button"

@@ -7,6 +7,7 @@ import NoticesPage from "./pages/NoticesPage";
 import ParametersPage from "./pages/ParametersPage";
 import UsersPage from "./pages/UsersPage";
 import AuditPage from "./pages/AuditPage";
+import ProfilePage from "./pages/ProfilePage";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/parametros" element={<ParametersPage />} />
           <Route path="/usuarios" element={<UsersPage />} />
           <Route path="/auditoria" element={<AuditPage />} />
+          <Route path="/perfil" element={<ProfilePage />} />
           <Route path="*" element={<div className="p-8">404 No Encontrado</div>} />
         </Route>
       </Routes>

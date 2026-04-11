@@ -31,8 +31,10 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         // Login normal
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        // La sesión se guarda en supabase y podemos recargar o usar Zustand en AppLayout
-        window.location.reload(); 
+        // Login exitoso — cerrar modal inmediatamente
+        // AuthContext detectará el cambio de sesión y cargará el perfil en background
+        onClose();
+        return;
       }
     } catch (err: any) {
       setError(err.message || "Ocurrió un error.");

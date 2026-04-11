@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye, UserPlus, Mail, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, UserPlus, Mail, Clock, User, Key, MailCheck, MailQuestion } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
 import type { UserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
+import { formatDateUTC, toUTCDateInputFormat, fromInputToUTC } from "../lib/dateUtils";
 
 
 export default function UsersPage() {
@@ -15,10 +16,13 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState({
     email: "",
+    full_name: "",
+    password: "",
     active_until: "",
     is_active: true,
   });
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isAdmin = hasPermission('admin');
 
@@ -44,20 +48,6 @@ export default function UsersPage() {
     }
   };
 
-  const sendConfirmationEmail = async (email: string, tempPassword: string) => {
-    try {
-      // In a real app, you'd call your backend API to send the email
-      // For now, we'll just show the credentials that should be sent
-      alert(`Credenciales para el nuevo usuario:\n\nEmail: ${email}\nContraseña temporal: ${tempPassword}\n\nPor favor, envía estas credenciales al usuario de forma segura.`);
-    } catch (error) {
-      console.error('Error sending email:', error);
-    }
-  };
-
-  const generateTempPassword = () => {
-    return Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12).toUpperCase();
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSendingEmail(true);
@@ -70,7 +60,7 @@ export default function UsersPage() {
         };
 
         if (formData.active_until) {
-          updateData.active_until = new Date(formData.active_until).toISOString();
+          updateData.active_until = fromInputToUTC(formData.active_until);
         } else {
           updateData.active_until = null;
         }
@@ -82,27 +72,31 @@ export default function UsersPage() {
 
         if (error) throw error;
       } else {
-        // Create new user
-        const tempPassword = generateTempPassword();
-
-        // First create the auth user
+        // --- CREATE NEW USER ---
+        // Auth Sign Up
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: formData.email,
-          password: tempPassword,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.full_name
+            }
+          }
         });
 
         if (authError) throw authError;
 
-        // The profile will be created automatically by the trigger
-        // But we need to set the role and active_until
         if (authData.user) {
+          // Note: The handle_new_user trigger in Supabase will automatically
+          // create the profile, but we might want to update it with extra fields
           const profileData: any = {
-            role: 'operador',
+            full_name: formData.full_name,
+            should_change_password: true,
             is_active: formData.is_active,
           };
 
           if (formData.active_until) {
-            profileData.active_until = new Date(formData.active_until).toISOString();
+            profileData.active_until = fromInputToUTC(formData.active_until);
           }
 
           const { error: profileError } = await supabase
@@ -111,9 +105,6 @@ export default function UsersPage() {
             .eq('id', authData.user.id);
 
           if (profileError) throw profileError;
-
-          // Send confirmation email with credentials
-          await sendConfirmationEmail(formData.email, tempPassword);
         }
       }
 
@@ -133,7 +124,9 @@ export default function UsersPage() {
     setEditingUser(user);
     setFormData({
       email: user.email,
-      active_until: user.active_until ? new Date(user.active_until).toISOString().split('T')[0] : "",
+      full_name: user.full_name || "",
+      password: "", // Not used in edit
+      active_until: toUTCDateInputFormat(user.active_until),
       is_active: user.is_active,
     });
     setIsModalOpen(true);
@@ -164,6 +157,8 @@ export default function UsersPage() {
   const resetForm = () => {
     setFormData({
       email: "",
+      full_name: "",
+      password: "",
       active_until: "",
       is_active: true,
     });
@@ -179,16 +174,33 @@ export default function UsersPage() {
     const now = new Date();
     const activeUntil = user.active_until ? new Date(user.active_until) : null;
 
-    if (!user.is_active) {
-      return <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">Inactivo</span>;
-    }
-
     if (user.role === 'admin') {
       return <span className="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded-full">Admin</span>;
     }
 
+    // 1. Prioridad: Estado de Correo
+    if (!user.email_confirmed) {
+      return (
+        <span className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded-full flex items-center gap-1 border border-amber-100">
+          <MailQuestion size={12} />
+          Correo Pendiente
+        </span>
+      );
+    }
+
+    // 2. Estado de Activo/Inactivo
+    if (!user.is_active) {
+      return <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">Inactivo</span>;
+    }
+
+    // 3. Estado de Expiración
     if (!activeUntil) {
-      return <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">Activo</span>;
+      return (
+        <span className="px-2 py-1 text-xs bg-green-50 text-green-700 rounded-full flex items-center gap-1 border border-green-100">
+          <MailCheck size={12} />
+          Confirmado
+        </span>
+      );
     }
 
     if (now > activeUntil) {
@@ -250,13 +262,13 @@ export default function UsersPage() {
                     <h3 className="font-semibold text-[#1d1d1f]">{user.email}</h3>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-[#86868b]">
-                        Creado: {new Date(user.created_at).toLocaleDateString('es-ES')}
+                        Creado: {formatDateUTC(user.created_at)}
                       </span>
                       {getStatusBadge(user)}
                     </div>
                     {user.active_until && (
                       <p className="text-xs text-[#86868b] mt-1">
-                        Activo hasta: {new Date(user.active_until).toLocaleDateString('es-ES')}
+                        Activo hasta: {formatDateUTC(user.active_until)}
                       </p>
                     )}
                   </div>
@@ -310,6 +322,21 @@ export default function UsersPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
+              <User size={16} className="text-apple-blue" />
+              Nombre Completo
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.full_name}
+              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              placeholder="Juan Pérez"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
               <Mail size={16} className="text-apple-blue" />
               Correo electrónico
             </label>
@@ -326,6 +353,32 @@ export default function UsersPage() {
               <p className="text-xs text-[#86868b] mt-1">El correo no se puede modificar</p>
             )}
           </div>
+
+          {!editingUser && (
+            <div>
+              <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
+                <Key size={16} className="text-apple-blue" />
+                Contraseña Inicial
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all pr-12"
+                  placeholder="Mínimo 8 caracteres"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
@@ -384,8 +437,7 @@ export default function UsersPage() {
                 <div>
                   <p className="text-sm text-blue-800 font-medium">Nota importante</p>
                   <p className="text-xs text-blue-700 mt-1">
-                    Al crear un usuario, se enviará un correo con las credenciales temporales.
-                    El usuario podrá cambiar su contraseña después del primer inicio de sesión.
+                    El usuario recibirá un correo de confirmación. Se le obligará a cambiar la contraseña ingresada aquí en su primer inicio de sesión por motivos de seguridad.
                   </p>
                 </div>
               </div>

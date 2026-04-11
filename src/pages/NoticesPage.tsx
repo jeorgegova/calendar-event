@@ -4,6 +4,7 @@ import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
+import { formatDateUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
 
 interface Notice {
@@ -160,7 +161,7 @@ export default function NoticesPage() {
                     <h3 className="font-semibold text-[#1d1d1f] text-lg">{notice.title}</h3>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-[#86868b]">
-                        {new Date(notice.created_at).toLocaleDateString('es-ES', {
+                        {formatDateUTC(notice.created_at, {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',

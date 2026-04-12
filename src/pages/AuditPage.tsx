@@ -51,7 +51,7 @@ const ENTITY_LABELS: Record<string, string> = {
   request_types: "Tipo de Solicitud"
 };
 
-const formatAuditValue = (key: string, value: any): string => {
+const formatAuditValue = (value: any): string => {
   if (value === null || value === undefined) return "N/A";
   if (typeof value === 'boolean') return value ? "Sí" : "No";
   
@@ -96,11 +96,11 @@ const RenderAuditDetails = ({ log }: { log: AuditLog }) => {
             </span>
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded-md line-through text-xs">
-                {formatAuditValue(key, oldData[key])}
+                {formatAuditValue(oldData[key])}
               </span>
               <span className="text-gray-400">→</span>
               <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-md font-medium text-xs">
-                {formatAuditValue(key, newData[key])}
+                {formatAuditValue(newData[key])}
               </span>
             </div>
           </div>
@@ -124,7 +124,7 @@ const RenderAuditDetails = ({ log }: { log: AuditLog }) => {
             {FIELD_LABELS[key] || key}:
           </span>
           <span className="text-[#1d1d1f] font-medium truncate">
-            {formatAuditValue(key, dataToShow[key])}
+            {formatAuditValue(dataToShow[key])}
           </span>
         </div>
       ))}

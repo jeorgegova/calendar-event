@@ -9,7 +9,7 @@ export const LoadingScreen = () => {
   useEffect(() => {
     if (showLoading) {
       const timer = setInterval(() => {
-        setLoadingProgress(prev =\u003e {
+        setLoadingProgress(prev => {
           const newProgress = Math.min(prev + 5, 90);
           return newProgress;
         });

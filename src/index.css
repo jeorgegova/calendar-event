@@ -1,10 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  --color-apple-light: #f5f5f7;
-  --color-apple-gray: #86868b;
-  --color-apple-dark: #1d1d1f;
-  --color-apple-blue: #1a6dff;
+  --color-logo-primary: #1e293b;
+  --color-logo-success: #34C759;
+  --color-logo-danger: #FF3B30;
+  --color-logo-dark: #0f172a;
+  --color-logo-gray: #64748b;
+  --color-logo-light: #f8fafc;
   --font-sans: "Inter", "SF Pro Display", "system-ui", sans-serif;
 }
 
@@ -15,7 +17,7 @@
   }
 
   body {
-    @apply bg-apple-light text-apple-dark antialiased selection:bg-apple-blue selection:text-white;
+    @apply bg-white text-logo-dark antialiased selection:bg-logo-primary selection:text-white;
   }
 }
 
@@ -27,9 +29,9 @@
   --fc-button-border-color: #e5e5ea;
   --fc-button-hover-bg-color: #e5e5ea;
   --fc-button-hover-border-color: #e5e5ea;
-  --fc-button-active-bg-color: #d1d1d6;
-  --fc-button-active-border-color: #d1d1d6;
-  --fc-today-bg-color: rgba(41, 151, 255, 0.06);
+  --fc-button-active-bg-color: #cbd5e1;
+  --fc-button-active-border-color: #cbd5e1;
+  --fc-today-bg-color: rgba(30, 41, 59, 0.04);
 }
 
 div.fc .fc-toolbar-title {
@@ -41,15 +43,15 @@ div.fc .fc-button {
 }
 
 div.fc .fc-button-primary:focus {
-  @apply ring-2 ring-apple-blue ring-offset-2 outline-none;
+  @apply ring-2 ring-logo-primary ring-offset-2 outline-none;
 }
 
 div.fc .fc-button-primary.fc-button-active,
 div.fc .fc-button-primary:active {
-  background-color: var(--color-apple-blue) !important;
-  border-color: var(--color-apple-blue) !important;
+  background-color: var(--color-logo-primary) !important;
+  border-color: var(--color-logo-primary) !important;
   color: #fff !important;
-  box-shadow: 0 0 8px rgba(26, 109, 255, 0.3), 0 0 16px rgba(26, 109, 255, 0.1) !important;
+  box-shadow: 0 0 15px rgba(30, 41, 59, 0.2);
 }
 
 div.fc .fc-col-header-cell {
@@ -130,10 +132,13 @@ html {
   transform: scale(0.98);
 }
 
-/* Neon glow utility for blue elements */
-.neon-blue {
-  box-shadow: 0 0 8px rgba(26, 109, 255, 0.3), 0 0 16px rgba(26, 109, 255, 0.1);
+/* Neon glow utility for logo elements */
+.neon-primary {
+  box-shadow: 0 0 12px rgba(30, 41, 59, 0.2), 0 0 20px rgba(30, 41, 59, 0.1);
 }
-.neon-blue-sm {
-  box-shadow: 0 0 5px rgba(26, 109, 255, 0.3), 0 0 10px rgba(26, 109, 255, 0.1);
+.neon-success {
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.3), 0 0 20px rgba(34, 197, 94, 0.15);
+}
+.neon-danger {
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3), 0 0 20px rgba(239, 68, 68, 0.15);
 }

@@ -12,6 +12,7 @@ export interface UserProfile {
   created_at: string;
   avatar_url?: string;
   active_until?: string | null;
+  is_active?: boolean;
   email_confirmed?: boolean;
 }
 
@@ -94,6 +95,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         setProfile(null);
       } else if (data) {
+        // Enforce account activity check
+        const isExpired = data.active_until && new Date(data.active_until) < new Date();
+        const isActive = data.is_active !== false;
+
+        if (!isActive || isExpired) {
+          console.warn('Blocked inactive/expired account login:', authUser.id);
+          await supabase.auth.signOut();
+          setProfile(null);
+          setUser(null);
+          profileCache.delete(authUser.id);
+          
+          // Dispatch a custom event for the login modal to catch
+          window.dispatchEvent(new CustomEvent('auth:inactive_account', { 
+            detail: !isActive ? 'Esta cuenta se encuentra inactiva' : 'Tu acceso ha vencido' 
+          }));
+          return;
+        }
+
         profileCache.set(authUser.id, data);
         setProfile(data);
       }

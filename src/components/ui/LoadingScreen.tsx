@@ -55,7 +55,7 @@ export const LoadingScreen = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-gradient-to-br from-apple-blue to-apple-blue/20 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 bg-[#0f172a] flex items-center justify-center">
       <div className="text-center">
         <div className="mb-4">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>

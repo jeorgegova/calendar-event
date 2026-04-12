@@ -16,7 +16,7 @@ export const UserProfile = ({ className }: UserProfileProps) => {
     <div className={cn('flex items-center gap-2', className)}>
       {/* User avatar and name */}
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-apple-blue text-white flex items-center justify-center text-sm font-medium">
+        <div className="w-8 h-8 rounded-full bg-logo-primary text-white flex items-center justify-center text-sm font-medium">
           {user.email?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="hidden md:block">
@@ -52,7 +52,7 @@ export const UserMenu = ({ className }: UserProfileProps) => {
   return (
     <div className={cn('relative group', className)}>
       <button className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
-        <div className="w-10 h-10 rounded-full bg-apple-blue text-white flex items-center justify-center text-sm font-medium">
+        <div className="w-10 h-10 rounded-full bg-logo-primary text-white flex items-center justify-center text-sm font-medium">
           {user.email?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="hidden md:block text-left">

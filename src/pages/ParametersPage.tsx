@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Settings, Tag, Users } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useConfirm } from "../context/ConfirmContext";
 import { supabase } from "../lib/supabase";
 import { cn } from "../lib/utils";
 import { getSpanishValidationProps } from "../lib/formUtils";
@@ -19,6 +20,7 @@ interface RequestType {
 
 export default function ParametersPage() {
   const { hasPermission } = useUserProfile();
+  const confirm = useConfirm();
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,7 +110,15 @@ export default function ParametersPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este elemento?')) return;
+    const confirmed = await confirm({
+      title: '¿Eliminar Elemento?',
+      message: '¿Estás seguro de que quieres eliminar este elemento?',
+      type: 'danger',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!confirmed) return;
 
     try {
       const table = activeTab === 'event-types' ? 'event_types' : 'request_types';
@@ -153,7 +163,7 @@ export default function ParametersPage() {
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-apple-blue/30 border-t-apple-blue rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -205,8 +215,8 @@ export default function ParametersPage() {
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-apple-blue/10 flex items-center justify-center">
-                  {React.createElement(currentIcon, { size: 20, className: "text-apple-blue" })}
+                <div className="w-10 h-10 rounded-2xl bg-logo-primary/10 flex items-center justify-center">
+                  {React.createElement(currentIcon, { size: 20, className: "text-logo-primary" })}
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-[#1d1d1f]">{currentTitle}</h2>
@@ -288,13 +298,13 @@ export default function ParametersPage() {
               {...getSpanishValidationProps("Por favor, ingresa un nombre")}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
               placeholder={`Ej: ${activeTab === 'event-types' ? 'Conferencia' : 'Multimedia'}`}
             />
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+            <Button type="submit" variant="success" className="flex-1" disabled={isSubmitting}>
               {isSubmitting ? "Guardando..." : (editingItem ? "Guardar Cambios" : "Crear")}
             </Button>
             <Button

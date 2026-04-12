@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Settings, Users, Bell, LogOut, Tags, List, CalendarDays, Clock, UserCircle, Cog, Loader2, AlertTriangle, ChevronRight } from "lucide-react";
+import { Calendar, Settings, Users, Bell, LogOut, Tags, List, CalendarDays, Clock, UserCircle, Cog, Loader2, ChevronRight, Shield } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { supabase } from "../../lib/supabase";
 
 import { LoginModal } from "../auth/LoginModal";
 import { Modal } from "../ui/Modal";
-import { Button } from "../ui/Button";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useAuth } from "../../context/AuthContext";
 import { formatDateUTC } from "../../lib/dateUtils";
+import logo from "../../assets/logo_fondo_negro.png";
 
 const NAV_ITEMS = [
   { label: "Calendario", icon: Calendar, path: "/" },
@@ -71,15 +71,29 @@ export const AppLayout = () => {
 
   // Scroll to notifications section (mobile bottom nav)
   const scrollToNotifications = () => {
-    const el = document.getElementById("notifications-section");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (location.pathname !== "/") {
+      navigate("/");
+      setTimeout(() => {
+        const el = document.getElementById("notifications-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300); // Un poco más de tiempo para el scroll
+    } else {
+      const el = document.getElementById("notifications-section");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
   // Dispatch view switch to calendar
   const switchView = (view: string) => {
-    window.dispatchEvent(new CustomEvent("calendar:switchView", { detail: view }));
+    if (location.pathname !== "/") {
+      navigate("/");
+      // Pequeño delay para que Home.tsx se monte y escuche el evento
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("calendar:switchView", { detail: view }));
+      }, 150);
+    } else {
+      window.dispatchEvent(new CustomEvent("calendar:switchView", { detail: view }));
+    }
   };
 
   // Items for the mobile bottom tab bar
@@ -100,22 +114,17 @@ export const AppLayout = () => {
         isOpen={isLogoutModalOpen}
         onClose={() => setLogoutModalOpen(false)}
         title={
-          <div className="flex flex-col items-center text-center gap-4">
-            <div className="w-16 h-16 rounded-3xl bg-red-50 flex items-center justify-center">
-              <LogOut size={32} className="text-red-600" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-[#1d1d1f] tracking-tight">
-                Cerrar Sesión
-              </h2>
-              <p className="text-[15px] text-[#86868b] mt-1">
-                ¿Estás seguro que deseas cerrar sesión?
-              </p>
-            </div>
-          </div>
+          <h2 className="text-xl font-bold text-logo-dark tracking-tight text-center">
+            Cerrar Sesión
+          </h2>
         }
         className="max-w-[400px]"
       >
+        <div className="flex flex-col items-center text-center gap-4">
+          <p className="text-[15px] text-[#86868b] mt-1">
+            ¿Estás seguro que deseas cerrar sesión?
+          </p>
+        </div>
         <div className="flex items-center gap-3 pt-4">
           <button
             onClick={() => setLogoutModalOpen(false)}
@@ -125,10 +134,10 @@ export const AppLayout = () => {
           </button>
           <button
             onClick={confirmLogout}
-            className="flex-1 px-4 py-3.5 rounded-2xl text-[15px] font-semibold text-white bg-red-600 hover:bg-red-700 shadow-lg shadow-red-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            className="flex-1 px-4 py-3.5 rounded-2xl text-[15px] font-semibold text-white bg-logo-danger hover:bg-red-700 shadow-lg shadow-red-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
           >
             <LogOut size={18} />
-            Cerrar
+            Cerrar Sesión
           </button>
         </div>
       </Modal>
@@ -139,9 +148,12 @@ export const AppLayout = () => {
         // En desktop, ocultar si ya tiene perfil (el sidebar tiene el branding)
         profileReady && !isMobile && "hidden"
       )}>
-        <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-apple-blue to-[#00c6ff] tracking-tight">
-          IPUC Colinas
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <img src={logo} alt="Logo IPUC" className="h-8 w-auto object-contain rounded-lg" />
+          <h1 className="text-lg font-bold text-logo-dark tracking-tight leading-none">
+            IPUC Colinas
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           {authLoading ? (
             // Spinner sutil mientras carga la sesión
@@ -163,7 +175,7 @@ export const AppLayout = () => {
             // Solo en mobile cuando auth — botón Menú
             isMobile && (
               <button
-                className="px-3 py-1.5 text-apple-blue font-semibold text-sm outline-none active:scale-95 transition-transform rounded-full bg-apple-blue/10"
+                className="px-3 py-1.5 text-logo-primary font-semibold text-sm outline-none active:scale-95 transition-transform rounded-full bg-logo-primary/10"
                 onClick={() => setIsMobileMenuOpen(true)}
               >
                 Menú
@@ -196,9 +208,12 @@ export const AppLayout = () => {
           >
             <div className="p-6 flex justify-between items-center">
               <div>
-                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-apple-blue to-[#00c6ff] tracking-tight">
-                  IPUC Colinas
-                </h1>
+                <div className="flex items-center gap-3 mb-2">
+                  <img src={logo} alt="Logo IPUC" className="h-10 w-auto object-contain rounded-xl" />
+                  <h1 className="text-xl font-bold text-logo-dark tracking-tight leading-none">
+                    IPUC Colinas
+                  </h1>
+                </div>
                 <div className="flex flex-col mt-1">
                   {profile ? (
                     <>
@@ -209,7 +224,7 @@ export const AppLayout = () => {
                         {profile.role === 'admin' ? 'Administrador' : 'Operador'}
                         {profile.role === 'operador' && profile.active_until && (
                           <span className="text-orange-600">
-                            (vence: {formatDateUTC(profile.active_until).split(' ')[0]})
+                            (vence: {formatDateUTC(profile.active_until, { day: '2-digit', month: '2-digit', year: 'numeric' })})
                           </span>
                         )}
                       </div>
@@ -243,14 +258,17 @@ export const AppLayout = () => {
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-3 rounded-xl text-[15px] font-medium transition-all active:scale-95",
+                      "flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group relative",
                       isActive
-                        ? "bg-apple-blue text-white neon-blue"
-                        : "text-[#86868b] hover:bg-gray-100 hover:text-[#1d1d1f]"
+                        ? "bg-logo-primary/10 text-logo-primary font-semibold"
+                        : "text-logo-dark hover:bg-gray-50"
                     )}
                   >
-                    <item.icon size={20} className={cn(isActive && "text-white")} />
-                    {item.label}
+                    <item.icon size={20} className={isActive ? "text-logo-primary" : "text-logo-gray group-hover:text-logo-dark transition-colors duration-300"} />
+                    <span className="text-sm">{item.label}</span>
+                    {isActive && (
+                      <div className="absolute left-0 w-1.5 h-6 bg-logo-primary rounded-r-full shadow-[2px_0_8px_rgba(30,41,59,0.3)]" />
+                    )}
                   </Link>
                 );
               })}
@@ -258,7 +276,7 @@ export const AppLayout = () => {
 
             <div className="p-4 border-t border-gray-100 bg-white">
               {profileReady ? (
-                <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full px-3 py-3 rounded-xl text-[15px] font-medium text-[#ff3b30] bg-[#ff3b30]/5 hover:bg-[#ff3b30]/15 active:scale-95 transition-all">
+                <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full px-3 py-3 rounded-xl text-[15px] font-medium text-logo-danger bg-logo-danger/5 hover:bg-logo-danger/15 active:scale-95 transition-all">
                   <LogOut size={20} />
                   Cerrar Sesión
                 </button>
@@ -271,18 +289,25 @@ export const AppLayout = () => {
 
         {/* Main Content */}
         <main className="flex-1 relative flex flex-col min-h-[calc(100vh-52px)] max-w-full overflow-hidden pb-20 md:pb-0 bg-[#f5f5f7]">
-          {/* Alerta de Seguridad (Cambio de contraseña forzado) */}
-          {isAuthenticated && profile?.should_change_password && (
-            <div className="bg-orange-500 text-white px-6 py-3 flex items-center justify-between shadow-lg border-b border-orange-600 z-10">
-              <div className="flex items-center gap-3">
-                <AlertTriangle size={18} className="animate-pulse" />
-                <p className="text-sm font-bold">Acción Requerida: Cambio de contraseña necesario por seguridad</p>
+          {/* Alerta de Seguridad (Cambio de contraseña forzado) — No mostrar en la página de perfil */}
+          {isAuthenticated && profile?.should_change_password && location.pathname !== "/perfil" && (
+            <div className="mx-4 md:mx-8 mt-4 mb-2 p-4 bg-orange-50 border border-orange-100 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500 z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-2xl bg-orange-100 flex items-center justify-center shrink-0">
+                  <Shield size={20} className="text-orange-600 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-orange-900 text-sm">Acción Requerida: Cambia tu contraseña</h3>
+                  <p className="text-xs text-orange-800/80 mt-0.5">
+                    Estás usando una contraseña temporal. Por seguridad, debes actualizarla.
+                  </p>
+                </div>
               </div>
               <Link
                 to="/perfil"
-                className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0"
+                className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-xs font-bold text-orange-600 shadow-sm border border-orange-100 hover:bg-orange-50 transition-all shrink-0"
               >
-                Ir a mi perfil
+                Actualizar ahora
                 <ChevronRight size={14} />
               </Link>
             </div>
@@ -303,12 +328,12 @@ export const AppLayout = () => {
                 className={cn(
                   "flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 active:scale-90",
                   isActive
-                    ? "text-apple-blue bg-apple-blue/10 neon-blue-sm"
-                    : "text-[#86868b]"
+                    ? "text-logo-primary bg-logo-primary/10"
+                    : "text-logo-gray"
                 )}
               >
                 <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
-                <span className={cn("text-[10px] font-semibold", isActive && "text-apple-blue")}>{item.label}</span>
+                <span className={cn("text-[10px] font-semibold", isActive && "text-logo-primary")}>{item.label}</span>
               </button>
             );
           })}

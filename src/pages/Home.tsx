@@ -5,7 +5,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import listPlugin from "@fullcalendar/list";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { Bell, ChevronRight, Clock, MapPin, Tag } from "lucide-react";
+import { Bell, Clock, Tag } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC, formatTimeUTC } from "../lib/dateUtils";
@@ -127,7 +127,7 @@ export default function Home() {
       end: ev.end_time,
       backgroundColor: ev.committees?.color_hex ?? "#2997ff",
       borderColor: ev.committees?.color_hex ?? "#2997ff",
-      extendedProps: { 
+      extendedProps: {
         committee_id: ev.committee_id,
         committeeName: ev.committees?.name,
         motto: ev.motto,
@@ -207,11 +207,11 @@ export default function Home() {
             ? "shadow-sm ring-2 ring-offset-1"
             : "hover:shadow-sm"
         )}
-        style={{ 
+        style={{
           backgroundColor: isActive ? comite.color_hex : `${comite.color_hex}1a`, // 1a = ~10% opacity
           color: isActive ? 'white' : comite.color_hex,
           borderColor: isActive ? comite.color_hex : `${comite.color_hex}40`, // 40 = ~25% opacity
-          ringColor: comite.color_hex
+          ...({ '--tw-ring-color': comite.color_hex } as React.CSSProperties)
         }}
       >
         {comite.name}
@@ -227,11 +227,6 @@ export default function Home() {
     setTooltipPos({ x: jsEvent.clientX, y: jsEvent.clientY });
   };
 
-  const handleMouseMove = (info: any) => {
-    if (isMobile) return;
-    setTooltipPos({ x: info.jsEvent.clientX, y: info.jsEvent.clientY });
-  };
-
   const handleMouseLeave = () => {
     setHoveredEvent(null);
   };
@@ -244,7 +239,7 @@ export default function Home() {
         <div className="flex flex-col gap-1 py-1 w-full">
           <div className="flex items-center justify-between gap-2">
             <span className="font-bold text-[#1d1d1f] text-sm">{eventInfo.event.title}</span>
-            <span 
+            <span
               className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
               style={{ backgroundColor: eventInfo.event.backgroundColor }}
             >
@@ -253,7 +248,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-3 text-xs text-[#86868b]">
             <div className="flex items-center gap-1">
-              <Clock size={12} className="text-apple-blue" />
+              <Clock size={12} className="text-logo-primary" />
               {formatTimeUTC(eventInfo.event.extendedProps.startTime)} - {formatTimeUTC(eventInfo.event.extendedProps.endTime)}
             </div>
             {eventInfo.event.extendedProps.motto && (
@@ -291,11 +286,11 @@ export default function Home() {
         </div>
       );
     }
-    
+
     // Vista de MES / REJILLA (Compacto)
     return (
       <div className="flex items-center gap-1 px-1 py-0.5 overflow-hidden w-full group">
-        <div 
+        <div
           className="w-2 h-2 rounded-full shrink-0 shadow-sm"
           style={{ backgroundColor: eventInfo.event.backgroundColor }}
         />
@@ -333,8 +328,8 @@ export default function Home() {
           "rounded-full font-semibold cursor-pointer transition-all active:scale-95",
           sizeClasses,
           isAllSelected
-            ? "bg-apple-blue/20 text-apple-blue ring-2 ring-apple-blue ring-offset-1"
-            : "bg-apple-blue/10 text-apple-blue"
+            ? "bg-logo-primary/20 text-logo-primary ring-2 ring-logo-primary ring-offset-1"
+            : "bg-logo-primary/10 text-logo-primary"
         )}
       >
         Todos
@@ -344,11 +339,11 @@ export default function Home() {
 
   // ── Render ─────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 w-full h-full flex flex-col md:flex-row gap-0 md:gap-6 p-0 md:p-6 overflow-x-hidden">
-      
+    <div className="flex-1 w-full h-full flex flex-col md:flex-row gap-0 md:gap-6 p-0 md:p-6 overflow-x-hidden bg-white">
+
       {/* Contenedor Calendario */}
       <div className="flex-1 bg-white md:rounded-3xl shadow-sm border-b md:border border-gray-100 p-3 md:p-6 flex flex-col transition-colors duration-200">
-        
+
         <header className="flex flex-row justify-between items-center mb-3 md:mb-6 px-1 md:px-0">
           <div>
             <h2 className="text-lg md:text-2xl font-bold tracking-tight text-[#1d1d1f]">Calendario</h2>
@@ -401,9 +396,9 @@ export default function Home() {
               day: 'Día',
               list: 'Lista'
             }}
+            allDayText="Todo el día"
             viewDidMount={handleViewDidMount}
             eventMouseEnter={handleMouseEnter}
-            eventMouseMove={handleMouseMove}
             eventMouseLeave={handleMouseLeave}
             eventClick={handleEventClick}
             eventContent={renderEventContent}
@@ -411,20 +406,18 @@ export default function Home() {
             moreLinkClick="popover"
           />
         </div>
-        
+
         {/* Portal de Tooltip Inteligente */}
         {hoveredEvent && createPortal(
-          <div 
+          <div
             className="fixed z-[9999] pointer-events-none"
-            onClick={(e) => isMobile && setHoveredEvent(null)}
-            style={{ 
-              left: tooltipPos.x + 15, 
+            onClick={() => isMobile && setHoveredEvent(null)}
+            style={{
+              left: tooltipPos.x + 15,
               top: tooltipPos.y + 15,
-              transform: `translate(${
-                tooltipPos.x + 240 > window.innerWidth ? (isMobile ? '-105%' : '-100%') : '0'
-              }, ${
-                tooltipPos.y + 180 > window.innerHeight ? (isMobile ? '-105%' : '-100%') : '0'
-              })`
+              transform: `translate(${tooltipPos.x + 240 > window.innerWidth ? (isMobile ? '-105%' : '-100%') : '0'
+                }, ${tooltipPos.y + 180 > window.innerHeight ? (isMobile ? '-105%' : '-100%') : '0'
+                })`
             }}
           >
             <div className={cn(
@@ -432,33 +425,33 @@ export default function Home() {
               isMobile && "ring-4 ring-black/5"
             )}>
               {isMobile && (
-                <button 
+                <button
                   onClick={() => setHoveredEvent(null)}
                   className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-gray-100 rounded-full text-gray-500"
                 >
                   ×
                 </button>
               )}
-              <div 
-                className="w-full h-1.5 rounded-full mb-3" 
+              <div
+                className="w-full h-1.5 rounded-full mb-3"
                 style={{ backgroundColor: hoveredEvent.backgroundColor }}
               />
               <h4 className="font-bold text-[#1d1d1f] text-sm mb-2 leading-tight">
                 {hoveredEvent.title}
               </h4>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs text-[#86868b]">
-                  <Clock size={14} className="text-apple-blue" />
+                  <Clock size={14} className="text-logo-primary" />
                   <span>
                     {formatTimeUTC(hoveredEvent.extendedProps.startTime)} - {formatTimeUTC(hoveredEvent.extendedProps.endTime)}
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-2 text-xs text-[#1d1d1f] font-medium">
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: hoveredEvent.backgroundColor }} 
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: hoveredEvent.backgroundColor }}
                   />
                   <span>{hoveredEvent.extendedProps.committeeName || 'General'}</span>
                 </div>
@@ -495,13 +488,13 @@ export default function Home() {
           {/* Avisos */}
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex-1 overflow-y-auto min-h-[300px]">
             <h3 className="font-semibold text-[#1d1d1f] mb-4 flex items-center gap-2">
-              <Bell size={18} className="text-apple-blue" />
+              <Bell size={18} className="text-logo-primary" />
               Notificaciones y Avisos
             </h3>
             <div className="space-y-3">
               {notices.length > 0 ? (
                 notices.map((notice) => (
-                  <div key={notice.id} className="p-4 rounded-2xl bg-[#f5f5f7] border border-gray-100 hover:bg-gray-50 transition-all duration-200 cursor-pointer tap-card">
+                  <div key={notice.id} className="p-4 rounded-2xl bg-[#f5f5f7] border border-gray-100">
                     <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
                     {notice.content && (
                       <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
@@ -525,24 +518,21 @@ export default function Home() {
       {isMobile && (
         <div id="notifications-section" className="px-4 pt-4 pb-24">
           <h3 className="font-semibold text-[#1d1d1f] mb-3 flex items-center gap-2 text-base">
-            <Bell size={18} className="text-apple-blue" />
+            <Bell size={18} className="text-logo-primary" />
             Avisos
           </h3>
           <div className="space-y-2.5">
             {notices.length > 0 ? (
               notices.map((notice) => (
-                <div key={notice.id} className="p-3.5 rounded-2xl bg-white border border-gray-100 shadow-sm active:bg-gray-50 transition-all duration-150 cursor-pointer tap-card">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
-                      {notice.content && (
-                        <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">{notice.content}</p>
-                      )}
-                      <p className="text-xs text-[#86868b] mt-1">
-                        {formatDateUTC(notice.created_at)}
-                      </p>
-                    </div>
-                    <ChevronRight size={16} className="text-gray-300 ml-2 shrink-0" />
+                <div key={notice.id} className="p-3.5 rounded-2xl bg-white border border-gray-100 shadow-sm">
+                  <div className="flex flex-col">
+                    <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
+                    {notice.content && (
+                      <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">{notice.content}</p>
+                    )}
+                    <p className="text-xs text-[#86868b] mt-1">
+                      {formatDateUTC(notice.created_at)}
+                    </p>
                   </div>
                 </div>
               ))

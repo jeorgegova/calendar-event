@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Eye } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useConfirm } from "../context/ConfirmContext";
 import { supabase } from "../lib/supabase";
 import { cn } from "../lib/utils";
 
@@ -15,6 +16,7 @@ interface Committee {
 
 export default function CommitteesPage() {
   const { hasPermission } = useUserProfile();
+  const confirm = useConfirm();
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,7 +87,15 @@ export default function CommitteesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este comité?')) return;
+    const confirmed = await confirm({
+      title: '¿Eliminar Comité?',
+      message: '¿Estás seguro de que quieres eliminar este comité? Esta acción no se puede deshacer.',
+      type: 'danger',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!confirmed) return;
 
     try {
       const { error } = await supabase
@@ -117,7 +127,7 @@ export default function CommitteesPage() {
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-apple-blue/30 border-t-apple-blue rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -224,7 +234,7 @@ export default function CommitteesPage() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
               placeholder="Ej: Jóvenes, Misiones, etc."
             />
           </div>
@@ -244,7 +254,7 @@ export default function CommitteesPage() {
                 type="text"
                 value={formData.color_hex}
                 onChange={(e) => setFormData({ ...formData, color_hex: e.target.value })}
-                className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all font-mono text-sm"
+                className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all font-mono text-sm"
                 placeholder="#FF5733"
               />
             </div>
@@ -256,7 +266,7 @@ export default function CommitteesPage() {
               id="is_active"
               checked={formData.is_active}
               onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="w-4 h-4 text-apple-blue bg-gray-100 border-gray-300 rounded focus:ring-apple-blue"
+              className="w-4 h-4 text-logo-primary bg-gray-100 border-gray-300 rounded focus:ring-logo-primary"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-[#1d1d1f]">
               Comité activo
@@ -264,7 +274,7 @@ export default function CommitteesPage() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
+            <Button type="submit" variant="success" className="flex-1">
               {editingCommittee ? "Guardar Cambios" : "Crear Comité"}
             </Button>
             <Button

@@ -179,14 +179,14 @@ export default function AuditPage() {
 
   const getActionIcon = (action: string) => {
     if (action.includes('CREATE')) return <FileText size={16} className="text-green-600" />;
-    if (action.includes('UPDATE')) return <Settings size={16} className="text-blue-600" />;
+    if (action.includes('UPDATE')) return <Settings size={16} className="text-yellow-600" />;
     if (action.includes('DELETE')) return <FileText size={16} className="text-red-600" />;
     return <Eye size={16} className="text-gray-600" />;
   };
 
   const getActionColor = (action: string) => {
     if (action.includes('CREATE')) return 'text-green-700 bg-green-50';
-    if (action.includes('UPDATE')) return 'text-blue-700 bg-blue-50';
+    if (action.includes('UPDATE')) return 'text-yellow-700 bg-yellow-50';
     if (action.includes('DELETE')) return 'text-red-700 bg-red-50';
     return 'text-gray-700 bg-gray-50';
   };
@@ -223,7 +223,7 @@ export default function AuditPage() {
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-apple-blue/30 border-t-apple-blue rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -250,14 +250,14 @@ export default function AuditPage() {
                 placeholder="Buscar..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
               />
             </div>
 
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              className="px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
             >
               <option value="">Todas las acciones</option>
               {uniqueActions.map(action => (
@@ -270,7 +270,7 @@ export default function AuditPage() {
             <select
               value={selectedEntity}
               onChange={(e) => setSelectedEntity(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              className="px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
             >
               <option value="">Todas las entidades</option>
               {uniqueEntities.map(entity => (
@@ -370,7 +370,7 @@ export default function AuditPage() {
                 <div className="text-sm text-[#86868b]">Creaciones</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{logs.filter(l => l.action.includes('UPDATE')).length}</div>
+                <div className="text-2xl font-bold text-yellow-600">{logs.filter(l => l.action.includes('UPDATE')).length}</div>
                 <div className="text-sm text-[#86868b]">Actualizaciones</div>
               </div>
               <div className="text-center">

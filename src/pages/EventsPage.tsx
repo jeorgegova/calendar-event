@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag, Info, CheckCircle2 } f
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useConfirm } from "../context/ConfirmContext";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC, formatTimeUTC, toUTCInputFormat, fromInputToUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
@@ -43,6 +44,7 @@ interface Event {
 
 export default function EventsPage() {
   const { hasPermission } = useUserProfile();
+  const confirm = useConfirm();
   const [events, setEvents] = useState<Event[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
@@ -211,7 +213,13 @@ export default function EventsPage() {
       resetForm();
     } catch (error) {
       console.error('Error saving event:', error);
-      alert('Error al guardar el evento: ' + (error as Error).message);
+      await confirm({
+        title: 'Error de Guardado',
+        message: 'No se pudo guardar el evento: ' + (error as Error).message,
+        type: 'danger',
+        showCancel: false,
+        confirmLabel: 'Entendido'
+      });
     }
   };
 
@@ -230,7 +238,17 @@ export default function EventsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este evento?')) return;
+    const confirmed = await confirm({
+      title: '¿Eliminar Evento?',
+      message: '¿Estás seguro de que quieres eliminar este evento?',
+      type: 'danger',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!confirmed) return;
+    
+    setLoading(true); // Mostrar loading mientras se elimina
 
     try {
       const { error } = await supabase
@@ -350,7 +368,7 @@ export default function EventsPage() {
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-apple-blue/30 border-t-apple-blue rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -386,7 +404,7 @@ export default function EventsPage() {
 
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-apple-blue" />
+                      <Calendar size={14} className="text-logo-primary" />
                       <span className="text-[#86868b]">
                         {formatDateUTC(event.start_time, {
                           weekday: 'short',
@@ -400,7 +418,7 @@ export default function EventsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Clock size={14} className="text-apple-blue" />
+                      <Clock size={14} className="text-logo-primary" />
                       <span className="text-[#86868b]">
                         {formatTimeUTC(event.start_time)} - {formatTimeUTC(event.end_time)}
                       </span>
@@ -408,7 +426,7 @@ export default function EventsPage() {
 
                     {event.committees && (
                       <div className="flex items-center gap-2">
-                        <Tag size={14} className="text-apple-blue" />
+                        <Tag size={14} className="text-logo-primary" />
                         <span
                           className="px-2 py-1 text-xs rounded-full text-white font-medium"
                           style={{ backgroundColor: event.committees.color_hex }}
@@ -420,7 +438,7 @@ export default function EventsPage() {
 
                     {event.event_types && (
                       <div className="flex items-center gap-2">
-                        <Users size={14} className="text-apple-blue" />
+                        <Users size={14} className="text-logo-primary" />
                         <span className="text-[#86868b]">{event.event_types.name}</span>
                       </div>
                     )}
@@ -495,10 +513,10 @@ export default function EventsPage() {
           {/* Sección 1: Información Básica */}
           <div className="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100/50 space-y-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-apple-blue/10 flex items-center justify-center">
-                <Info size={16} className="text-apple-blue" />
+              <div className="w-8 h-8 rounded-xl bg-logo-primary/10 flex items-center justify-center">
+                <Info size={16} className="text-logo-primary" />
               </div>
-              <h3 className="font-bold text-[#1d1d1f]">Información del Evento</h3>
+              <h3 className="font-bold text-logo-dark">Información del Evento</h3>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
@@ -512,7 +530,7 @@ export default function EventsPage() {
                   {...getSpanishValidationProps("Por favor, ingresa el título del evento")}
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all"
+                  className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all"
                   placeholder="Ej: Reunión de Jóvenes"
                 />
               </div>
@@ -525,7 +543,7 @@ export default function EventsPage() {
                   <select
                     value={formData.committee_id}
                     onChange={(e) => setFormData({ ...formData, committee_id: e.target.value })}
-                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all text-sm"
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
                   >
                     <option value="">Opcional</option>
                     {committees.map(committee => (
@@ -540,7 +558,7 @@ export default function EventsPage() {
                   <select
                     value={formData.event_type_id}
                     onChange={(e) => setFormData({ ...formData, event_type_id: e.target.value })}
-                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all text-sm"
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
                   >
                     <option value="">Opcional</option>
                     {eventTypes.map(type => (
@@ -553,12 +571,12 @@ export default function EventsPage() {
           </div>
 
           {/* Sección 2: Programación */}
-          <div className="bg-apple-blue/5 p-6 rounded-[2rem] border border-apple-blue/10 space-y-4">
+          <div className="bg-logo-primary/5 p-6 rounded-[2rem] border border-logo-primary/10 space-y-4">
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-8 h-8 rounded-xl bg-apple-blue/10 flex items-center justify-center">
-                <Calendar size={16} className="text-apple-blue" />
+              <div className="w-8 h-8 rounded-xl bg-logo-primary/10 flex items-center justify-center">
+                <Calendar size={16} className="text-logo-primary" />
               </div>
-              <h3 className="font-bold text-[#1d1d1f]">Horario</h3>
+              <h3 className="font-bold text-logo-dark">Horario</h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -575,7 +593,7 @@ export default function EventsPage() {
                     {...getSpanishValidationProps("Por favor, selecciona una fecha")}
                     value={splitDateTime(formData.start_time).date}
                     onChange={(e) => handleStartDateTimeChange(e.target.value, undefined)}
-                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm font-medium text-sm"
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm font-medium text-sm"
                   />
                   <TimePicker 
                     label="Hora de Inicio"
@@ -588,7 +606,7 @@ export default function EventsPage() {
               {/* Fin */}
               <div className="space-y-3">
                 <label className="block text-xs font-bold text-[#86868b] uppercase tracking-tight pl-1 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-apple-blue" />
+                  <div className="w-2 h-2 rounded-full bg-logo-primary" />
                   Término
                 </label>
                 <div className="flex flex-col gap-3">
@@ -599,7 +617,7 @@ export default function EventsPage() {
                     min={splitDateTime(formData.start_time).date}
                     value={splitDateTime(formData.end_time).date}
                     onChange={(e) => handleEndDateTimeChange(e.target.value, undefined)}
-                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm font-medium text-sm"
+                    className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm font-medium text-sm"
                   />
                   <TimePicker 
                     label="Hora de Término"
@@ -621,7 +639,7 @@ export default function EventsPage() {
                 type="text"
                 value={formData.motto}
                 onChange={(e) => setFormData({ ...formData, motto: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue transition-all text-sm"
+                className="w-full px-4 py-3 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary transition-all text-sm"
                 placeholder="Ej: Unidos en Fe"
               />
             </div>
@@ -639,7 +657,7 @@ export default function EventsPage() {
                     className={cn(
                       "px-4 py-2 rounded-full text-xs font-semibold border transition-all active:scale-95",
                       formData.request_type_ids.includes(requestType.id)
-                        ? "bg-apple-blue border-apple-blue text-white shadow-md shadow-apple-blue/20"
+                        ? "bg-logo-primary border-logo-primary text-white shadow-md shadow-logo-primary/20"
                         : "bg-white border-gray-100 text-gray-500 hover:border-gray-200"
                     )}
                   >
@@ -659,7 +677,7 @@ export default function EventsPage() {
             >
               Cancelar
             </Button>
-            <Button type="submit" className="flex-1 rounded-2xl py-6 shadow-xl shadow-apple-blue/20">
+            <Button type="submit" variant="success" className="flex-1 rounded-2xl py-6 shadow-xl shadow-logo-success/20">
               {editingEvent ? "Guardar Cambios" : "Crear Evento"}
             </Button>
           </div>

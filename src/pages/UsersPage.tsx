@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, UserPlus, Mail, Clock, User, Key, MailCheck, MailQuestion } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, UserPlus, Mail, Clock, User, Key, MailCheck, MailQuestion, Shield } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
 import type { UserProfile } from "../hooks/useUserProfile";
+import { useConfirm } from "../context/ConfirmContext";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC, toUTCDateInputFormat, fromInputToUTC } from "../lib/dateUtils";
 import { translateError } from "../lib/authErrors";
@@ -12,6 +13,7 @@ import { getSpanishValidationProps } from "../lib/formUtils";
 
 export default function UsersPage() {
   const { hasPermission } = useUserProfile();
+  const confirm = useConfirm();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,6 +24,7 @@ export default function UsersPage() {
     password: "",
     active_until: "",
     is_active: true,
+    role: "operador" as 'admin' | 'operador',
   });
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -59,6 +62,7 @@ export default function UsersPage() {
         // Update existing user
         const updateData: any = {
           is_active: formData.is_active,
+          role: formData.role,
         };
 
         if (formData.active_until) {
@@ -93,6 +97,7 @@ export default function UsersPage() {
           // create the profile, but we might want to update it with extra fields
           const profileData: any = {
             full_name: formData.full_name,
+            role: formData.role,
             should_change_password: true,
             is_active: formData.is_active,
           };
@@ -116,7 +121,13 @@ export default function UsersPage() {
       resetForm();
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('Error al guardar usuario: ' + translateError(error));
+      await confirm({
+        title: 'Error de Guardado',
+        message: translateError(error),
+        type: 'danger',
+        showCancel: false,
+        confirmLabel: 'Entendido'
+      });
     } finally {
       setSendingEmail(false);
     }
@@ -130,12 +141,21 @@ export default function UsersPage() {
       password: "", // Not used in edit
       active_until: toUTCDateInputFormat(user.active_until),
       is_active: user.is_active,
+      role: user.role,
     });
     setIsModalOpen(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este usuario? Esta acción no se puede deshacer.')) return;
+    const confirmed = await confirm({
+      title: '¿Eliminar Usuario?',
+      message: '¿Estás seguro de que quieres eliminar este usuario? Esta acción no se puede deshacer.',
+      type: 'danger',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!confirmed) return;
 
     try {
       // First delete the profile
@@ -148,11 +168,89 @@ export default function UsersPage() {
 
       // Note: In Supabase, deleting from auth.users requires admin privileges
       // For now, we'll just mark as inactive
-      alert('Usuario marcado como inactivo. Para eliminación completa, contacta al administrador del sistema.');
+      await confirm({
+        title: 'Usuario Desactivado',
+        message: 'Usuario marcado como inactivo. Para eliminación completa, contacta al administrador del sistema.',
+        type: 'info',
+        showCancel: false,
+        confirmLabel: 'OK'
+      });
 
       await loadUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
+    }
+  };
+
+  const handleQuickExpiry = async (user: UserProfile, days: number | null) => {
+    let newDate: string | null = null;
+    let label = "";
+
+    if (days !== null) {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      newDate = d.toISOString().split('T')[0];
+      label = days === 7 ? "una semana de acceso" : "30 días de acceso";
+    } else {
+      label = "acceso permanente (quitar vencimiento)";
+    }
+
+    const confirmed = await confirm({
+      title: 'Actualizar Expiración',
+      message: `¿Estás seguro de que quieres asignar ${label} a ${user.email}?`,
+      type: 'info',
+      confirmLabel: 'Asignar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ active_until: newDate ? fromInputToUTC(newDate) : null })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      await loadUsers();
+    } catch (error) {
+      console.error('Error updating expiry:', error);
+      await confirm({
+        title: 'Error',
+        message: 'No se pudo actualizar la fecha de vencimiento.',
+        type: 'danger',
+        showCancel: false,
+        confirmLabel: 'Entendido'
+      });
+    }
+  };
+
+  const handleToggleActive = async (user: UserProfile) => {
+    try {
+      const newStatus = !user.is_active;
+      
+      // Optimistic update
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: newStatus } : u));
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: newStatus })
+        .eq('id', user.id);
+
+      if (error) {
+        // Rollback on error
+        setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: !newStatus } : u));
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      await confirm({
+        title: 'Error',
+        message: 'No se pudo cambiar el estado del usuario.',
+        type: 'danger',
+        showCancel: false,
+        confirmLabel: 'Entendido'
+      });
     }
   };
 
@@ -163,6 +261,7 @@ export default function UsersPage() {
       password: "",
       active_until: "",
       is_active: true,
+      role: 'operador',
     });
   };
 
@@ -230,71 +329,98 @@ export default function UsersPage() {
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-apple-blue/30 border-t-apple-blue rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-4 md:p-8 bg-[#fbfbfd]">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
           <div>
             <h1 className="text-2xl font-bold text-[#1d1d1f]">Gestión de Usuarios</h1>
             <p className="text-sm text-[#86868b] mt-1">Administra los usuarios operadores del sistema</p>
           </div>
-          <Button onClick={openCreateModal} className="flex items-center gap-2">
+          <Button onClick={openCreateModal} className="flex items-center gap-2 shadow-lg shadow-logo-primary/10">
             <Plus size={18} />
             Nuevo Operador
           </Button>
         </div>
-
-        <div className="space-y-4">
+        <div className="space-y-6">
           {users.map((user) => (
             <div
               key={user.id}
-              className="p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
+              className="group p-5 md:p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all duration-500"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-apple-blue/10 flex items-center justify-center">
-                    <UserPlus size={20} className="text-apple-blue" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-[#1d1d1f]">{user.email}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs text-[#86868b]">
-                        Creado: {formatDateUTC(user.created_at)}
-                      </span>
-                      {getStatusBadge(user)}
+              <div className="flex flex-col gap-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-14 h-14 rounded-2xl bg-logo-primary/5 flex items-center justify-center shrink-0 border border-logo-primary/10 group-hover:bg-logo-primary/10 transition-colors">
+                      <UserPlus size={24} className="text-logo-primary" />
                     </div>
-                    {user.active_until && (
-                      <p className="text-xs text-[#86868b] mt-1">
-                        Activo hasta: {formatDateUTC(user.active_until)}
-                      </p>
-                    )}
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-[#1d1d1f] truncate text-lg md:text-xl break-all">
+                        {user.full_name || user.email}
+                      </h3>
+                      {user.full_name && (
+                        <p className="text-xs text-[#86868b] font-medium truncate mb-1">
+                          {user.email}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-1.5 font-medium">
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 rounded-lg text-[#86868b] text-[10px] uppercase tracking-wider">
+                          Creado: {formatDateUTC(user.created_at)}
+                        </div>
+                        {getStatusBadge(user)}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Apple Style Switch */}
+                  {user.role !== 'admin' && (
+                    <div className="flex items-center">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={user.is_active}
+                          onChange={() => handleToggleActive(user)}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#4cd964]"></div>
+                      </label>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEdit(user)}
-                  >
-                    <Edit size={14} />
-                    Editar
-                  </Button>
-                  {user.role !== 'admin' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDelete(user.id)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 size={14} />
+                {user.role !== 'admin' && (
+                  <div className="flex flex-col md:flex-row md:items-center gap-4 bg-[#fbfbfd] p-4 md:p-2.5 rounded-[1.5rem] border border-gray-100">
+                    <div className="px-2 py-1 text-[10px] font-black text-gray-400 uppercase tracking-widest border-none md:border-r border-gray-200">
+                      Vencimiento
+                    </div>
+                    <div className="flex gap-2 w-full">
+                      <button onClick={() => handleQuickExpiry(user, 7)} className="flex-1 px-4 py-2.5 text-xs font-bold bg-white text-slate-700 rounded-2xl border border-gray-200 hover:border-logo-primary hover:text-logo-primary transition-all">+7d</button>
+                      <button onClick={() => handleQuickExpiry(user, 30)} className="flex-1 px-4 py-2.5 text-xs font-bold bg-white text-slate-700 rounded-2xl border border-gray-200 hover:border-logo-primary hover:text-logo-primary transition-all">+30d</button>
+                      <button onClick={() => handleQuickExpiry(user, null)} className="flex-1 px-4 py-2.5 text-xs font-bold bg-white text-red-400 rounded-2xl border border-gray-200 hover:border-red-400 hover:text-red-500 transition-all text-lg leading-none">∞</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pt-2 border-t border-gray-50">
+                  <p className="text-sm font-bold text-gray-600 flex items-center gap-2">
+                    <span className={`w-3 h-3 rounded-full ${user.active_until ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+                    {user.active_until ? `Vencimiento: ${formatDateUTC(user.active_until)}` : 'Acceso Vitalicio'}
+                  </p>
+                  <div className="flex gap-3">
+                    <Button size="sm" variant="outline" onClick={() => handleEdit(user)} className="flex-1 sm:flex-none py-3 px-6 bg-white font-bold rounded-2xl">
+                      <Edit size={16} /> Editar
                     </Button>
-                  )}
+                    {user.role !== 'admin' && (
+                      <Button size="sm" variant="outline" onClick={() => handleDelete(user.id)} className="py-3 px-4 bg-white text-red-500 hover:text-red-700 border-red-100 rounded-2xl">
+                        <Trash2 size={18} />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -302,14 +428,14 @@ export default function UsersPage() {
         </div>
 
         {users.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <UserPlus size={24} className="text-gray-400" />
+          <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200 mt-6 px-10">
+            <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <UserPlus size={32} className="text-gray-300" />
             </div>
-            <h3 className="text-lg font-semibold text-[#1d1d1f] mb-2">No hay usuarios</h3>
-            <p className="text-sm text-[#86868b]">Crea el primer usuario operador</p>
-            <Button onClick={openCreateModal} className="mt-4">
-              Crear Usuario
+            <h3 className="text-xl font-bold text-[#1d1d1f] mb-2">No se encontraron usuarios</h3>
+            <p className="text-gray-400 max-w-xs mx-auto mb-8 font-medium">Comienza agregando al primer operador para gestionar el calendario.</p>
+            <Button onClick={openCreateModal} className="px-10 py-4 rounded-2xl shadow-lg">
+              Crear primer usuario
             </Button>
           </div>
         )}
@@ -324,7 +450,7 @@ export default function UsersPage() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
-              <User size={16} className="text-apple-blue" />
+              <User size={16} className="text-logo-primary" />
               Nombre Completo
             </label>
             <input
@@ -333,14 +459,14 @@ export default function UsersPage() {
               {...getSpanishValidationProps("Por favor, ingresa el nombre completo")}
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
               placeholder="Juan Pérez"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
-              <Mail size={16} className="text-apple-blue" />
+              <Mail size={16} className="text-logo-primary" />
               Correo electrónico
             </label>
             <input
@@ -350,7 +476,7 @@ export default function UsersPage() {
               disabled={!!editingUser}
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all disabled:bg-gray-50 disabled:text-gray-500"
               placeholder="usuario@email.com"
             />
             {editingUser && (
@@ -361,7 +487,7 @@ export default function UsersPage() {
           {!editingUser && (
             <div>
               <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
-                <Key size={16} className="text-apple-blue" />
+                <Key size={16} className="text-logo-primary" />
                 Contraseña Inicial
               </label>
               <div className="relative">
@@ -371,7 +497,7 @@ export default function UsersPage() {
                   {...getSpanishValidationProps("Por favor, ingresa una contraseña inicial")}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all pr-12"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all pr-12"
                   placeholder="Mínimo 8 caracteres"
                 />
                 <button
@@ -385,35 +511,111 @@ export default function UsersPage() {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-[#1d1d1f] mb-2 flex items-center gap-2">
-              <Clock size={16} className="text-apple-blue" />
-              Activo hasta (opcional)
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-[#1d1d1f] flex items-center gap-2">
+              <Clock size={16} className="text-logo-primary" />
+              Acceso Activo hasta
             </label>
-            <input
-              type="date"
-              value={formData.active_until}
-              onChange={(e) => setFormData({ ...formData, active_until: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
-            />
-            <p className="text-xs text-[#86868b] mt-1">Deja vacío para acceso permanente</p>
+            
+            <div className="relative">
+              <input
+                type="date"
+                value={formData.active_until}
+                onChange={(e) => setFormData({ ...formData, active_until: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all bg-white"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 7);
+                  setFormData({ ...formData, active_until: d.toISOString().split('T')[0] });
+                }}
+                className="px-3 py-1.5 text-xs font-bold bg-slate-50 text-slate-600 rounded-xl border border-slate-100 hover:bg-logo-primary/10 hover:text-logo-primary hover:border-logo-primary/20 transition-all active:scale-95"
+              >
+                +1 Semana
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setMonth(d.getMonth() + 1);
+                  setFormData({ ...formData, active_until: d.toISOString().split('T')[0] });
+                }}
+                className="px-3 py-1.5 text-xs font-bold bg-slate-50 text-slate-600 rounded-xl border border-slate-100 hover:bg-logo-primary/10 hover:text-logo-primary hover:border-logo-primary/20 transition-all active:scale-95"
+              >
+                +30 Días
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, active_until: "" })}
+                className="px-3 py-1.5 text-xs font-bold bg-red-50 text-red-600 rounded-xl border border-red-100 hover:bg-red-100 transition-all active:scale-95"
+              >
+                No vence
+              </button>
+            </div>
+            <p className="text-[10px] text-[#86868b] pl-1 font-medium italic">
+              * El usuario no podrá iniciar sesión después de esta fecha.
+            </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="is_active"
-              checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="w-4 h-4 text-apple-blue bg-gray-100 border-gray-300 rounded focus:ring-apple-blue"
-            />
-            <label htmlFor="is_active" className="text-sm font-medium text-[#1d1d1f]">
-              Usuario activo
-            </label>
+          <div className="flex flex-col gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${formData.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200 text-gray-500'}`}>
+                  <User size={18} />
+                </div>
+                <div>
+                  <label htmlFor="is_active" className="text-sm font-bold text-[#1d1d1f] block leading-none">
+                    Usuario Activo
+                  </label>
+                  <p className="text-[10px] text-gray-500 mt-1">Permitir el acceso al sistema</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="is_active"
+                  className="sr-only peer"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#4cd964]"></div>
+              </label>
+            </div>
+
+            <div className="h-px bg-gray-100 w-full" />
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${formData.role === 'admin' ? 'bg-logo-primary/20 text-logo-primary' : 'bg-gray-200 text-gray-500'}`}>
+                  <Shield size={18} />
+                </div>
+                <div>
+                  <label htmlFor="is_admin" className="text-sm font-bold text-[#1d1d1f] block leading-none">
+                    Administrador
+                  </label>
+                  <p className="text-[10px] text-gray-500 mt-1">Permisos elevados de gestión</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  id="is_admin"
+                  className="sr-only peer"
+                  checked={formData.role === 'admin'}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.checked ? 'admin' : 'operador' })}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-logo-primary"></div>
+              </label>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1" disabled={sendingEmail}>
+            <Button type="submit" variant="success" className="flex-1" disabled={sendingEmail}>
               {sendingEmail ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

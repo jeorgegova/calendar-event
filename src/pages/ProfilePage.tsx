@@ -127,8 +127,8 @@ export default function ProfilePage() {
           {/* Personal Information */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
-              <User className="text-apple-blue" size={20} />
-              <h2 className="text-lg font-bold text-[#1d1d1f]">Datos Personales</h2>
+              <User className="text-logo-primary" size={20} />
+              <h2 className="text-lg font-bold text-logo-dark">Datos Personales</h2>
             </div>
 
             <form onSubmit={handleUpdateProfile} className="space-y-6">
@@ -140,7 +140,7 @@ export default function ProfilePage() {
                     type="text"
                     value={formData.full_name}
                     onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-apple-blue transition-all"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
                   />
                 </div>
               </div>
@@ -159,7 +159,7 @@ export default function ProfilePage() {
                 <p className="text-[10px] text-[#86868b] mt-2 px-1">El correo no puede ser modificado por el usuario.</p>
               </div>
 
-              <Button type="submit" disabled={loading} className="w-full">
+              <Button type="submit" variant="success" disabled={loading} className="w-full">
                 {loading ? "Guardando..." : "Actualizar Nombre"}
               </Button>
             </form>
@@ -168,8 +168,8 @@ export default function ProfilePage() {
           {/* Security / Password */}
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
-              <Lock className="text-orange-500" size={20} />
-              <h2 className="text-lg font-bold text-[#1d1d1f]">Seguridad</h2>
+              <Lock className="text-logo-primary" size={20} />
+              <h2 className="text-lg font-bold text-logo-dark">Seguridad</h2>
             </div>
 
             <form onSubmit={handleChangePassword} className="space-y-6">
@@ -183,7 +183,7 @@ export default function ProfilePage() {
                     {...getSpanishValidationProps("Por favor, ingresa la nueva contraseña")}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-apple-blue transition-all"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
                     placeholder="••••••••"
                   />
                 </div>
@@ -199,16 +199,18 @@ export default function ProfilePage() {
                     {...getSpanishValidationProps("Por favor, confirma la nueva contraseña")}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-apple-blue transition-all"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
                     placeholder="••••••••"
                   />
                 </div>
               </div>
 
-              <Button type="submit" variant="outline" disabled={loading} className={cn(
-                "w-full",
-                profile.should_change_password ? "border-orange-200 text-orange-700 hover:bg-orange-50" : ""
-              )}>
+              <Button 
+                type="submit" 
+                variant="success" 
+                disabled={loading} 
+                className="w-full shadow-[0_0_20px_rgba(34,197,94,0.2)]"
+              >
                 {loading ? "Cambiando..." : "Actualizar Contraseña"}
               </Button>
             </form>

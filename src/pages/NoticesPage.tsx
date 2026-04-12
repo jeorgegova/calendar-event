@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Bell } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
+import { useConfirm } from "../context/ConfirmContext";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
@@ -19,6 +20,7 @@ interface Notice {
 
 export default function NoticesPage() {
   const { hasPermission } = useUserProfile();
+  const confirm = useConfirm();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -89,7 +91,15 @@ export default function NoticesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta notificación?')) return;
+    const confirmed = await confirm({
+      title: '¿Eliminar Notificación?',
+      message: '¿Estás seguro de que quieres eliminar esta notificación?',
+      type: 'danger',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar'
+    });
+
+    if (!confirmed) return;
 
     try {
       const { error } = await supabase
@@ -121,7 +131,7 @@ export default function NoticesPage() {
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-apple-blue/30 border-t-apple-blue rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -155,8 +165,8 @@ export default function NoticesPage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-apple-blue/10 flex items-center justify-center">
-                    <Bell size={18} className="text-apple-blue" />
+                  <div className="w-10 h-10 rounded-2xl bg-logo-primary/10 flex items-center justify-center">
+                    <Bell size={18} className="text-logo-primary" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-[#1d1d1f] text-lg">{notice.title}</h3>
@@ -243,7 +253,7 @@ export default function NoticesPage() {
               {...getSpanishValidationProps("Por favor, ingresa el título")}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all"
               placeholder="Ej: Próximo retiro espiritual"
             />
           </div>
@@ -256,7 +266,7 @@ export default function NoticesPage() {
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               rows={4}
-              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary focus:border-transparent transition-all resize-none"
               placeholder="Detalles de la notificación..."
             />
           </div>
@@ -267,7 +277,7 @@ export default function NoticesPage() {
               id="is_active"
               checked={formData.is_active}
               onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-              className="w-4 h-4 text-apple-blue bg-gray-100 border-gray-300 rounded focus:ring-apple-blue"
+              className="w-4 h-4 text-logo-primary bg-gray-100 border-gray-300 rounded focus:ring-logo-primary"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-[#1d1d1f]">
               Notificación activa
@@ -275,7 +285,7 @@ export default function NoticesPage() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
+            <Button type="submit" variant="success" className="flex-1">
               {editingNotice ? "Guardar Cambios" : "Crear Notificación"}
             </Button>
             <Button

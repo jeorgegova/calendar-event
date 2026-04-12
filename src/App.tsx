@@ -8,11 +8,15 @@ import ParametersPage from "./pages/ParametersPage";
 import UsersPage from "./pages/UsersPage";
 import AuditPage from "./pages/AuditPage";
 import ProfilePage from "./pages/ProfilePage";
+import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
+import UpdatePasswordPage from "./pages/auth/UpdatePasswordPage";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/update-password" element={<UpdatePasswordPage />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/eventos" element={<EventsPage />} />

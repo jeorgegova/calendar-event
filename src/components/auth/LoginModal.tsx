@@ -166,7 +166,7 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         <Button
           type="submit"
           className="w-full h-12 text-base font-semibold"
-          disabled={loading}
+          disabled={loading || (isResetMode && successMsg !== null)}
         >
           {loading ? (
             <div className="flex items-center gap-2">

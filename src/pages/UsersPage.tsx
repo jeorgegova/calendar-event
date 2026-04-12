@@ -140,7 +140,7 @@ export default function UsersPage() {
       full_name: user.full_name || "",
       password: "", // Not used in edit
       active_until: toUTCDateInputFormat(user.active_until),
-      is_active: user.is_active,
+      is_active: user.is_active ?? true,
       role: user.role,
     });
     setIsModalOpen(true);

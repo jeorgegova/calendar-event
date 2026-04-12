@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal } from './Modal';
 import { Button } from './Button';
-import { AlertTriangle, Info, HelpCircle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, HelpCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface ConfirmDialogProps {

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 export const LoadingScreen = () => {
   const [showLoading, setShowLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  
+
   // Simulate loading progress
   useEffect(() => {
     if (showLoading) {
@@ -14,7 +14,7 @@ export const LoadingScreen = () => {
           return newProgress;
         });
       }, 100);
-      
+
       return () => clearInterval(timer);
     }
   }, [showLoading]);
@@ -24,7 +24,7 @@ export const LoadingScreen = () => {
     const checkAuthState = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
+
         if (session?.user) {
           // User exists, show loading until profile is ready
           setLoadingProgress(30);

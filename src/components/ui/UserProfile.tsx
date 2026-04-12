@@ -1,14 +1,14 @@
-import { useAuth } from '../context/AuthContext';
-import { Bell, ChevronDown, LogOut, User } from 'lucide-react';
-import { Button } from './ui/Button';
-import { cn } from '../lib/utils';
+import { useAuth } from '../../context/AuthContext';
+import { ChevronDown, LogOut } from 'lucide-react';
+import { Button } from './Button';
+import { cn } from '../../lib/utils';
 
 interface UserProfileProps {
   className?: string;
 }
 
 export const UserProfile = ({ className }: UserProfileProps) => {
-  const { user, profile, isAdmin, isOperator, signOut } = useAuth();
+  const { user, isAdmin, isOperator, signOut } = useAuth();
 
   if (!user) return null;
 
@@ -45,7 +45,7 @@ export const UserProfile = ({ className }: UserProfileProps) => {
 
 // User menu dropdown component
 export const UserMenu = ({ className }: UserProfileProps) => {
-  const { user, profile, isAdmin, isOperator, signOut } = useAuth();
+  const { user, isAdmin, isOperator, signOut } = useAuth();
 
   if (!user) return null;
 

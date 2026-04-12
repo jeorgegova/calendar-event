@@ -140,7 +140,7 @@ export const AppLayout = () => {
         profileReady && !isMobile && "hidden"
       )}>
         <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-apple-blue to-[#00c6ff] tracking-tight">
-          EventCalendar
+          IPUC Colinas
         </h1>
         <div className="flex items-center gap-2">
           {authLoading ? (
@@ -197,7 +197,7 @@ export const AppLayout = () => {
             <div className="p-6 flex justify-between items-center">
               <div>
                 <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-apple-blue to-[#00c6ff] tracking-tight">
-                  EventCalendar
+                  IPUC Colinas
                 </h1>
                 <div className="flex flex-col mt-1">
                   {profile ? (
@@ -278,8 +278,8 @@ export const AppLayout = () => {
                 <AlertTriangle size={18} className="animate-pulse" />
                 <p className="text-sm font-bold">Acción Requerida: Cambio de contraseña necesario por seguridad</p>
               </div>
-              <Link 
-                to="/perfil" 
+              <Link
+                to="/perfil"
                 className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0"
               >
                 Ir a mi perfil

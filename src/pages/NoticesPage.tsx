@@ -6,6 +6,7 @@ import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
+import { getSpanishValidationProps } from "../lib/formUtils";
 
 interface Notice {
   id: string;
@@ -239,6 +240,7 @@ export default function NoticesPage() {
             <input
               type="text"
               required
+              {...getSpanishValidationProps("Por favor, ingresa el título")}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"

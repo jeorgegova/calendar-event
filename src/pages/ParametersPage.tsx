@@ -5,6 +5,7 @@ import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
 import { cn } from "../lib/utils";
+import { getSpanishValidationProps } from "../lib/formUtils";
 
 interface EventType {
   id: string;
@@ -284,6 +285,7 @@ export default function ParametersPage() {
             <input
               type="text"
               required
+              {...getSpanishValidationProps("Por favor, ingresa un nombre")}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"

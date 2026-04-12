@@ -3,6 +3,8 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { translateError } from "../../lib/authErrors";
+import { getSpanishValidationProps } from "../../lib/formUtils";
 
 export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const [email, setEmail] = useState("");
@@ -37,7 +39,7 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         return;
       }
     } catch (err: any) {
-      setError(err.message || "Ocurrió un error.");
+      setError(translateError(err));
     } finally {
       setLoading(false);
     }
@@ -91,6 +93,7 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             <input
               type="email"
               required
+              {...getSpanishValidationProps("Por favor, ingresa tu correo")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 pl-4 pr-4 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all duration-200 bg-white placeholder:text-gray-400 text-[#1d1d1f] font-medium"
@@ -110,6 +113,7 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
               <input
                 type={showPassword ? "text" : "password"}
                 required
+                {...getSpanishValidationProps("Por favor, ingresa tu contraseña")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 pl-4 pr-12 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all duration-200 bg-white placeholder:text-gray-400 text-[#1d1d1f] font-medium"

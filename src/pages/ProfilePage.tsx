@@ -3,6 +3,7 @@ import { User, Mail, Lock, Shield, CheckCircle2, AlertCircle } from "lucide-reac
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
+import { getSpanishValidationProps } from "../lib/formUtils";
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth();
@@ -179,6 +180,7 @@ export default function ProfilePage() {
                   <input
                     type="password"
                     required
+                    {...getSpanishValidationProps("Por favor, ingresa la nueva contraseña")}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                     className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-apple-blue transition-all"
@@ -194,6 +196,7 @@ export default function ProfilePage() {
                   <input
                     type="password"
                     required
+                    {...getSpanishValidationProps("Por favor, confirma la nueva contraseña")}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                     className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-apple-blue transition-all"

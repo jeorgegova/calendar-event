@@ -6,6 +6,7 @@ import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC, formatTimeUTC, toUTCInputFormat, fromInputToUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
+import { getSpanishValidationProps } from "../lib/formUtils";
 
 
 interface Committee {
@@ -508,6 +509,7 @@ export default function EventsPage() {
                 <input
                   type="text"
                   required
+                  {...getSpanishValidationProps("Por favor, ingresa el título del evento")}
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm transition-all"
@@ -570,6 +572,7 @@ export default function EventsPage() {
                   <input
                     type="date"
                     required
+                    {...getSpanishValidationProps("Por favor, selecciona una fecha")}
                     value={splitDateTime(formData.start_time).date}
                     onChange={(e) => handleStartDateTimeChange(e.target.value, undefined)}
                     className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue shadow-sm font-medium text-sm"
@@ -592,6 +595,7 @@ export default function EventsPage() {
                   <input
                     type="date"
                     required
+                    {...getSpanishValidationProps("Por favor, selecciona una fecha de término")}
                     min={splitDateTime(formData.start_time).date}
                     value={splitDateTime(formData.end_time).date}
                     onChange={(e) => handleEndDateTimeChange(e.target.value, undefined)}

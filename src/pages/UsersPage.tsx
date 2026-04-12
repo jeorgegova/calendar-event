@@ -6,6 +6,8 @@ import { useUserProfile } from "../hooks/useUserProfile";
 import type { UserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC, toUTCDateInputFormat, fromInputToUTC } from "../lib/dateUtils";
+import { translateError } from "../lib/authErrors";
+import { getSpanishValidationProps } from "../lib/formUtils";
 
 
 export default function UsersPage() {
@@ -114,7 +116,7 @@ export default function UsersPage() {
       resetForm();
     } catch (error) {
       console.error('Error saving user:', error);
-      alert('Error al guardar usuario: ' + (error as Error).message);
+      alert('Error al guardar usuario: ' + translateError(error));
     } finally {
       setSendingEmail(false);
     }
@@ -328,6 +330,7 @@ export default function UsersPage() {
             <input
               type="text"
               required
+              {...getSpanishValidationProps("Por favor, ingresa el nombre completo")}
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
               className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all"
@@ -343,6 +346,7 @@ export default function UsersPage() {
             <input
               type="email"
               required
+              {...getSpanishValidationProps("Por favor, ingresa un correo válido")}
               disabled={!!editingUser}
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -364,6 +368,7 @@ export default function UsersPage() {
                 <input
                   type={showPassword ? "text" : "password"}
                   required
+                  {...getSpanishValidationProps("Por favor, ingresa una contraseña inicial")}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-apple-blue focus:border-transparent transition-all pr-12"

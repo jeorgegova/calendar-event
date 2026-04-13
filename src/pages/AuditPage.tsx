@@ -52,23 +52,25 @@ const ENTITY_LABELS: Record<string, string> = {
 
 const formatServerDate = (dateString: string, includeSeconds = false) => {
   if (!dateString) return '';
-  const parts = dateString.split('T');
-  if (parts.length >= 2) {
-    const [year, month, day] = parts[0].split('-');
-    const timeParts = parts[1].split(':');
-    const hour = timeParts[0] || '00';
-    const minute = timeParts[1] || '00';
-    const second = (timeParts[2] || '00').substring(0, 2);
 
-    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-    const monthName = months[parseInt(month, 10) - 1];
+  // Parse as UTC and convert to UTC-5
+  const utcDate = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+  const utcMinus5Date = new Date(utcDate.getTime() - (5 * 60 * 60 * 1000)); // Subtract 5 hours
 
-    if (includeSeconds) {
-      return `${parseInt(day, 10)} ${monthName} ${year}, ${hour}:${minute}:${second}`;
-    }
-    return `${parseInt(day, 10)} ${monthName} ${year}, ${hour}:${minute}`;
+  const year = utcMinus5Date.getFullYear();
+  const month = utcMinus5Date.getMonth(); // 0-based
+  const day = utcMinus5Date.getDate();
+  const hour = utcMinus5Date.getHours();
+  const minute = utcMinus5Date.getMinutes();
+  const second = utcMinus5Date.getSeconds();
+
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const monthName = months[month];
+
+  if (includeSeconds) {
+    return `${day} ${monthName} ${year}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
   }
-  return dateString;
+  return `${day} ${monthName} ${year}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 };
 
 const formatAuditValue = (value: any, key?: string, dictionaries?: any): React.ReactNode => {

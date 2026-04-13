@@ -51,25 +51,56 @@ const ENTITY_LABELS: Record<string, string> = {
   request_types: "Tipo de Solicitud"
 };
 
-const formatAuditValue = (value: any): string => {
+const formatServerDate = (dateString: string, includeSeconds = false) => {
+  if (!dateString) return '';
+  const parts = dateString.split('T');
+  if (parts.length >= 2) {
+    const [year, month, day] = parts[0].split('-');
+    const timeParts = parts[1].split(':');
+    const hour = timeParts[0] || '00';
+    const minute = timeParts[1] || '00';
+    const second = (timeParts[2] || '00').substring(0, 2);
+    
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const monthName = months[parseInt(month, 10) - 1];
+    
+    if (includeSeconds) {
+      return `${parseInt(day, 10)} ${monthName} ${year}, ${hour}:${minute}:${second}`;
+    }
+    return `${parseInt(day, 10)} ${monthName} ${year}, ${hour}:${minute}`;
+  }
+  return dateString;
+};
+
+const formatAuditValue = (value: any, key?: string, dictionaries?: any): React.ReactNode => {
   if (value === null || value === undefined) return "N/A";
   if (typeof value === 'boolean') return value ? "Sí" : "No";
   
+  // Custom formats
+  if (key === 'color_hex') {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: value }} />
+        <span>{value}</span>
+      </div>
+    );
+  }
+  if (key === 'committee_id' && dictionaries?.committees?.[value]) {
+    return dictionaries.committees[value];
+  }
+  if (key === 'event_type_id' && dictionaries?.eventTypes?.[value]) {
+    return dictionaries.eventTypes[value];
+  }
+  
   // Si es una fecha (ISO string simple o con Z)
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-    return formatDateUTC(value, { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    return formatServerDate(value);
   }
   
   return String(value);
 };
 
-const RenderAuditDetails = ({ log }: { log: AuditLog }) => {
+const RenderAuditDetails = ({ log, dictionaries }: { log: AuditLog, dictionaries: any }) => {
   if (!log.details) return null;
 
   const { old: oldData, new: newData } = log.details;
@@ -95,13 +126,13 @@ const RenderAuditDetails = ({ log }: { log: AuditLog }) => {
               {FIELD_LABELS[key] || key}:
             </span>
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded-md line-through text-xs">
-                {formatAuditValue(oldData[key])}
-              </span>
+              <div className="px-2 py-0.5 bg-red-50 text-red-700 rounded-md line-through text-xs">
+                {formatAuditValue(oldData[key], key, dictionaries)}
+              </div>
               <span className="text-gray-400">→</span>
-              <span className="px-2 py-0.5 bg-green-50 text-green-700 rounded-md font-medium text-xs">
-                {formatAuditValue(newData[key])}
-              </span>
+              <div className="px-2 py-0.5 bg-green-50 text-green-700 rounded-md font-medium text-xs">
+                {formatAuditValue(newData[key], key, dictionaries)}
+              </div>
             </div>
           </div>
         ))}
@@ -123,8 +154,8 @@ const RenderAuditDetails = ({ log }: { log: AuditLog }) => {
           <span className="font-medium text-[#86868b] min-w-[80px]">
             {FIELD_LABELS[key] || key}:
           </span>
-          <span className="text-[#1d1d1f] font-medium truncate">
-            {formatAuditValue(dataToShow[key])}
+          <span className="text-[#1d1d1f] font-medium truncate flex items-center">
+            {formatAuditValue(dataToShow[key], key, dictionaries)}
           </span>
         </div>
       ))}
@@ -139,6 +170,10 @@ export default function AuditPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAction, setSelectedAction] = useState("");
   const [selectedEntity, setSelectedEntity] = useState("");
+  const [dictionaries, setDictionaries] = useState({
+    committees: {} as Record<string, string>,
+    eventTypes: {} as Record<string, string>
+  });
 
   const isAdmin = hasPermission('admin');
 
@@ -150,12 +185,13 @@ export default function AuditPage() {
 
   const loadLogs = async () => {
     try {
-      let query = supabase
+      const p1 = supabase
         .from('audit_logs')
         .select(`
           *,
           profiles:user_id (
-            email
+            email,
+            full_name
           )
         `)
         .order('created_at', { ascending: false })
@@ -163,13 +199,23 @@ export default function AuditPage() {
 
       // If not admin, only show own logs
       if (!isAdmin && profile) {
-        query = query.eq('user_id', profile.id);
+        p1.eq('user_id', profile.id);
       }
 
-      const { data, error } = await query;
+      const p2 = supabase.from('committees').select('id, name');
+      const p3 = supabase.from('event_types').select('id, name');
 
-      if (error) throw error;
-      setLogs(data || []);
+      const [logsRes, comRes, evRes] = await Promise.all([p1, p2, p3]);
+
+      if (logsRes.error) throw logsRes.error;
+      
+      const cMap: Record<string, string> = {};
+      const eMap: Record<string, string> = {};
+      if (comRes.data) comRes.data.forEach(c => cMap[c.id] = c.name);
+      if (evRes.data) evRes.data.forEach(e => eMap[e.id] = e.name);
+      
+      setDictionaries({ committees: cMap, eventTypes: eMap });
+      setLogs(logsRes.data || []);
     } catch (error) {
       console.error('Error loading audit logs:', error);
     } finally {
@@ -192,10 +238,11 @@ export default function AuditPage() {
   };
 
   const filteredLogs = logs.filter(log => {
+    const userName = (log.profiles as any)?.full_name || log.profiles?.email || '';
     const matchesSearch = !searchTerm ||
       log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.entity_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.profiles?.email || '').toLowerCase().includes(searchTerm.toLowerCase());
+      userName.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesAction = !selectedAction || log.action.includes(selectedAction);
     const matchesEntity = !selectedEntity || log.entity_type === selectedEntity;
@@ -320,22 +367,15 @@ export default function AuditPage() {
                     <div className="flex items-center gap-4 text-sm text-[#86868b] mb-2">
                       <div className="flex items-center gap-1">
                         <User size={14} />
-                        {log.profiles?.email || 'Sistema'}
+                        {(log.profiles as any)?.full_name || log.profiles?.email || 'Sistema'}
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar size={14} />
-                        {formatDateUTC(log.created_at, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit'
-                        })}
+                        {formatServerDate(log.created_at, true)}
                       </div>
                     </div>
 
-                    <RenderAuditDetails log={log} />
+                    <RenderAuditDetails log={log} dictionaries={dictionaries} />
                   </div>
                 </div>
               </div>

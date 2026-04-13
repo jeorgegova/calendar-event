@@ -200,7 +200,7 @@ export const AppLayout = () => {
         {(profileReady || isMobileMenuOpen) && (
           <aside
             className={cn(
-              "fixed md:sticky top-0 left-0 h-screen w-72 bg-white/95 backdrop-blur-xl z-50 flex flex-col shadow-2xl md:shadow-sm transition-transform duration-300 ease-out",
+              "fixed md:sticky top-0 left-0 h-screen w-72 bg-white z-50 flex flex-col shadow-2xl md:shadow-sm transition-transform duration-300 ease-out",
               isMobile
                 ? (isMobileMenuOpen ? "translate-x-0" : "-translate-x-full")
                 : "translate-x-0"
@@ -288,7 +288,7 @@ export const AppLayout = () => {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 relative flex flex-col min-h-[calc(100vh-52px)] max-w-full overflow-hidden pb-20 md:pb-0 bg-[#f5f5f7]">
+        <main className="flex-1 relative flex flex-col min-h-[calc(100vh-52px)] max-w-full overflow-x-hidden pb-20 md:pb-0 bg-[#f5f5f7]">
           {/* Alerta de Seguridad (Cambio de contraseña forzado) — No mostrar en la página de perfil */}
           {isAuthenticated && profile?.should_change_password && location.pathname !== "/perfil" && (
             <div className="mx-4 md:mx-8 mt-4 mb-2 p-4 bg-orange-50 border border-orange-100 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500 z-10">

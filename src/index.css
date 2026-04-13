@@ -35,7 +35,15 @@
 }
 
 div.fc .fc-toolbar-title {
-  @apply text-lg md:text-xl font-bold tracking-tight text-[#1d1d1f];
+  @apply text-lg md:text-xl font-bold tracking-tight text-[#1d1d1f] m-0 leading-none;
+}
+
+div.fc .fc-toolbar {
+  @apply flex-wrap gap-y-3;
+}
+
+div.fc .fc-toolbar-chunk {
+  @apply flex items-center gap-2;
 }
 
 div.fc .fc-button {
@@ -87,7 +95,7 @@ div.fc .fc-daygrid-day-number {
 }
 
 /* MOBILE TOOLBAR STACKING */
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .fc-toolbar {
     flex-direction: column !important;
     gap: 6px;

@@ -39,7 +39,15 @@ interface Event {
 }
 
 // ── Eventos cargados desde Supabase ──────────────────
+const BIBLE_BOOKS = [
+  "Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio", "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Crónicas", "2 Crónicas", "Esdras", "Nehemías", "Ester", "Job", "Salmos", "Proverbios", "Eclesiastés", "Cantares", "Isaías", "Jeremías", "Lamentaciones", "Ezequiel", "Daniel", "Oseas", "Joel", "Amós", "Abdías", "Jonás", "Miqueas", "Nahúm", "Habacuc", "Sofonías", "Hageo", "Zacarías", "Malaquías", "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos", "1 Corintios", "2 Corintios", "Gálatas", "Efesios", "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses", "1 Timoteo", "2 Timoteo", "Tito", "Filemón", "Hebreos", "Santiago", "1 Pedro", "2 Pedro", "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
+];
 
+const FALLBACK_VERSES = [
+  { content: "Todo lo puedo en Cristo que me fortalece. - Filipenses 4:13" },
+  { content: "El Señor es mi pastor, nada me faltará. - Salmos 23:1" },
+  { content: "Jehová es mi luz y mi salvación; ¿de quién temeré? - Salmos 27:1" }
+];
 
 // ── Componente ──────────────────────────────────────────────────────────
 export default function Home() {
@@ -52,7 +60,14 @@ export default function Home() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [hoveredEvent, setHoveredEvent] = useState<any>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
+  // Track desktop breakpoint
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load data from Supabase
   useEffect(() => {
@@ -95,9 +110,39 @@ export default function Home() {
 
       if (noticesError) throw noticesError;
 
+      // Generar versículo de forma dinámica desde una API
+      const today = new Date();
+      let verseData = null;
+      try {
+        const response = await fetch('https://bolls.life/get-random-verse/RV1960/');
+        if (response.ok) {
+          const apiVerse = await response.json();
+          const bookName = BIBLE_BOOKS[apiVerse.book - 1] || "Libro Desconocido";
+          verseData = {
+            content: `${apiVerse.text} - ${bookName} ${apiVerse.chapter}:${apiVerse.verse}`
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching random verse', err);
+      }
+
+      // Si la API falla, seleccionamos uno estático por fecha del año
+      if (!verseData) {
+        const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
+        verseData = FALLBACK_VERSES[dayOfYear % FALLBACK_VERSES.length];
+      }
+
+      const verseOfTheDay: Notice = {
+        id: `verse-api-${today.getTime()}`,
+        title: "Versículo del Día",
+        content: verseData.content,
+        is_active: true,
+        created_at: today.toISOString()
+      };
+
       setCommittees(committeesData || []);
       setEvents(eventsData || []);
-      setNotices(noticesData || []);
+      setNotices([verseOfTheDay, ...(noticesData || [])]);
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -183,8 +228,8 @@ export default function Home() {
     return () => window.removeEventListener("calendar:switchView" as any, handler);
   }, [changeViewSmooth]);
 
-  const mobileToolbar = { left: 'prev,next', center: 'title', right: 'today' };
-  const desktopToolbar = { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth' };
+  const mobileToolbar = { left: '', center: 'prev title next', right: 'today' };
+  const desktopToolbar = { left: 'today', center: 'prev title next', right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth' };
 
   const handleViewDidMount = (info: { view: { type: string } }) => {
     window.dispatchEvent(new CustomEvent("calendar:viewChanged", { detail: info.view.type }));
@@ -337,12 +382,63 @@ export default function Home() {
     );
   };
 
+  // ── Render Helpers ──────────────────────────────────────────────────
+  const renderComites = () => (
+    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 shrink-0">
+      <h3 className="font-semibold text-[#1d1d1f] mb-4">Comités</h3>
+      <div className="flex flex-wrap gap-2">
+        <TodosChip />
+        {committees.map((c) => (
+          <ComiteChip key={c.id} comite={c} />
+        ))}
+      </div>
+      {!isAllSelected && (
+        <p className="text-xs text-[#86868b] mt-3">
+          Mostrando: {selectedComites.map((id) => committees.find((c) => c.id === id)?.name).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+
+  const renderAvisos = () => (
+    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex-1 overflow-y-auto min-h-0 flex flex-col">
+      <h3 className="font-semibold text-[#1d1d1f] mb-4 flex items-center gap-2 shrink-0">
+        <Bell size={18} className="text-logo-primary" />
+        Notificaciones y Avisos
+      </h3>
+      <div className="space-y-3 flex-1">
+        {notices.length > 0 ? (
+          notices.map((notice) => (
+            <div key={notice.id} className="p-4 rounded-2xl bg-[#f5f5f7] border border-gray-100">
+              <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
+              {notice.content && (
+                <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
+              )}
+              <p className="text-xs text-[#86868b] mt-2">{formatDateUTC(notice.created_at)}</p>
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-sm text-[#86868b]">No hay avisos activos</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // ── Render ─────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 w-full h-full flex flex-col md:flex-row gap-0 md:gap-6 p-0 md:p-6 overflow-x-hidden bg-white">
+    <div className={cn("flex-1 w-full flex flex-col lg:flex-row gap-4 md:gap-6 p-4 md:p-6 overflow-x-hidden", isDesktop && "h-full")}>
+
+      {/* Comités (Modo Tablet) — Arriba del calendario */}
+      {!isMobile && (
+        <div className="w-full lg:hidden order-1">
+          {renderComites()}
+        </div>
+      )}
 
       {/* Contenedor Calendario */}
-      <div className="flex-1 bg-white md:rounded-3xl shadow-sm border-b md:border border-gray-100 p-3 md:p-6 flex flex-col transition-colors duration-200">
+      <div className="flex-1 bg-white md:rounded-3xl shadow-sm border-b md:border border-gray-100 p-3 md:p-6 flex flex-col transition-colors duration-200 order-2 lg:order-1">
 
         <header className="flex flex-row justify-between items-center mb-3 md:mb-6 px-1 md:px-0">
           <div>
@@ -376,8 +472,8 @@ export default function Home() {
             now={getCalendarNow()}
             headerToolbar={isMobile ? mobileToolbar : desktopToolbar}
             events={filteredEvents}
-            height={isMobile ? "auto" : "100%"}
-            contentHeight={isMobile ? "auto" : undefined}
+            height={isDesktop ? "100%" : "auto"}
+            contentHeight={isDesktop ? undefined : "auto"}
             dayMaxEvents={isMobile ? 2 : true}
             locale="es"
             navLinks={true}
@@ -468,49 +564,18 @@ export default function Home() {
         )}
       </div>
 
-      {/* Panel Lateral Derecho — Solo visible en desktop */}
+      {/* Avisos (Modo Tablet) — Abajo del calendario */}
       {!isMobile && (
-        <div className="w-80 flex flex-col gap-6">
-          {/* Filtros por comité */}
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5">
-            <h3 className="font-semibold text-[#1d1d1f] mb-4">Comités</h3>
-            <div className="flex flex-wrap gap-2">
-              <TodosChip />
-              {committees.map(c => <ComiteChip key={c.id} comite={c} />)}
-            </div>
-            {!isAllSelected && (
-              <p className="text-xs text-[#86868b] mt-3">
-                Mostrando: {selectedComites.map(id => committees.find(c => c.id === id)?.name).join(", ")}
-              </p>
-            )}
-          </div>
+        <div className="w-full lg:hidden order-3 pt-2">
+          {renderAvisos()}
+        </div>
+      )}
 
-          {/* Avisos */}
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 flex-1 overflow-y-auto min-h-[300px]">
-            <h3 className="font-semibold text-[#1d1d1f] mb-4 flex items-center gap-2">
-              <Bell size={18} className="text-logo-primary" />
-              Notificaciones y Avisos
-            </h3>
-            <div className="space-y-3">
-              {notices.length > 0 ? (
-                notices.map((notice) => (
-                  <div key={notice.id} className="p-4 rounded-2xl bg-[#f5f5f7] border border-gray-100">
-                    <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
-                    {notice.content && (
-                      <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
-                    )}
-                    <p className="text-xs text-[#86868b] mt-2">
-                      {formatDateUTC(notice.created_at)}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-sm text-[#86868b]">No hay avisos activos</p>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Panel Lateral Derecho (Modo Desktop) */}
+      {!isMobile && (
+        <div className="hidden lg:flex w-80 flex-col gap-6 order-2 shrink-0">
+          {renderComites()}
+          {renderAvisos()}
         </div>
       )}
 

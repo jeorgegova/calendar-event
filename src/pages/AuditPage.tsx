@@ -60,24 +60,40 @@ const formatServerDate = (dateString: string, includeSeconds = false) => {
     isoString = dateString.replace(' ', 'T').replace(/\+00$/, 'Z');
   }
 
-  // Parse as UTC and convert to UTC-5
-  const utcDate = new Date(isoString);
+  // Parse components manually to ensure UTC interpretation
+  const [datePart, timePartWithTz] = isoString.split('T');
+  const [yearStr, monthStr, dayStr] = datePart.split('-');
+  const timePart = timePartWithTz.replace(/Z|\+.*$/, ''); // Remove timezone
+  const [time] = timePart.split('.'); // Remove microseconds if present
+  const [hourStr, minuteStr, secondStr] = time.split(':');
+
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10) - 1; // 0-based
+  const day = parseInt(dayStr, 10);
+  const hour = parseInt(hourStr, 10);
+  const minute = parseInt(minuteStr, 10);
+  const second = parseInt(secondStr, 10) || 0;
+
+  // Create UTC date
+  const utcDate = new Date(Date.UTC(year, month, day, hour, minute, second));
+
+  // Convert to UTC-5
   const utcMinus5Date = new Date(utcDate.getTime() - (5 * 60 * 60 * 1000)); // Subtract 5 hours
 
-  const year = utcMinus5Date.getFullYear();
-  const month = utcMinus5Date.getMonth(); // 0-based
-  const day = utcMinus5Date.getDate();
-  const hour = utcMinus5Date.getHours();
-  const minute = utcMinus5Date.getMinutes();
-  const second = utcMinus5Date.getSeconds();
+  const displayYear = utcMinus5Date.getUTCFullYear();
+  const displayMonth = utcMinus5Date.getUTCMonth(); // 0-based
+  const displayDay = utcMinus5Date.getUTCDate();
+  const displayHour = utcMinus5Date.getUTCHours();
+  const displayMinute = utcMinus5Date.getUTCMinutes();
+  const displaySecond = utcMinus5Date.getUTCSeconds();
 
   const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  const monthName = months[month];
+  const monthName = months[displayMonth];
 
   if (includeSeconds) {
-    return `${day} ${monthName} ${year}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+    return `${displayDay} ${monthName} ${displayYear}, ${String(displayHour).padStart(2, '0')}:${String(displayMinute).padStart(2, '0')}:${String(displaySecond).padStart(2, '0')}`;
   }
-  return `${day} ${monthName} ${year}, ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return `${displayDay} ${monthName} ${displayYear}, ${String(displayHour).padStart(2, '0')}:${String(displayMinute).padStart(2, '0')}`;
 };
 
 const formatAuditValue = (value: any, key?: string, dictionaries?: any): React.ReactNode => {
@@ -193,6 +209,10 @@ export default function AuditPage() {
 
   const loadLogs = async () => {
     try {
+      // Get date one month ago
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
       const p1 = supabase
         .from('audit_logs')
         .select(`
@@ -202,8 +222,8 @@ export default function AuditPage() {
             full_name
           )
         `)
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .gte('created_at', oneMonthAgo.toISOString())
+        .order('created_at', { ascending: false });
 
       // If not admin, only show own logs
       if (!isAdmin && profile) {

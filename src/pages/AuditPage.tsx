@@ -3,7 +3,6 @@ import { Eye, Search, Filter, Calendar, User, Settings, FileText } from "lucide-
 import { Button } from "../components/ui/Button";
 import { useUserProfile } from "../hooks/useUserProfile";
 import { supabase } from "../lib/supabase";
-import { formatDateUTC } from "../lib/dateUtils";
 import { cn } from "../lib/utils";
 
 interface AuditLog {
@@ -60,10 +59,10 @@ const formatServerDate = (dateString: string, includeSeconds = false) => {
     const hour = timeParts[0] || '00';
     const minute = timeParts[1] || '00';
     const second = (timeParts[2] || '00').substring(0, 2);
-    
+
     const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     const monthName = months[parseInt(month, 10) - 1];
-    
+
     if (includeSeconds) {
       return `${parseInt(day, 10)} ${monthName} ${year}, ${hour}:${minute}:${second}`;
     }
@@ -75,7 +74,7 @@ const formatServerDate = (dateString: string, includeSeconds = false) => {
 const formatAuditValue = (value: any, key?: string, dictionaries?: any): React.ReactNode => {
   if (value === null || value === undefined) return "N/A";
   if (typeof value === 'boolean') return value ? "Sí" : "No";
-  
+
   // Custom formats
   if (key === 'color_hex') {
     return (
@@ -91,12 +90,12 @@ const formatAuditValue = (value: any, key?: string, dictionaries?: any): React.R
   if (key === 'event_type_id' && dictionaries?.eventTypes?.[value]) {
     return dictionaries.eventTypes[value];
   }
-  
+
   // Si es una fecha (ISO string simple o con Z)
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
     return formatServerDate(value);
   }
-  
+
   return String(value);
 };
 
@@ -111,8 +110,8 @@ const RenderAuditDetails = ({ log, dictionaries }: { log: AuditLog, dictionaries
   const ignoredFields = ['id', 'created_at', 'updated_at', 'created_by', 'user_id'];
 
   if (isUpdate && oldData && newData) {
-    const changes = Object.keys(newData).filter(key => 
-      !ignoredFields.includes(key) && 
+    const changes = Object.keys(newData).filter(key =>
+      !ignoredFields.includes(key) &&
       JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])
     );
 
@@ -143,7 +142,7 @@ const RenderAuditDetails = ({ log, dictionaries }: { log: AuditLog, dictionaries
   const dataToShow = isCreate ? newData : (isDelete ? oldData : null);
   if (!dataToShow) return null;
 
-  const fields = Object.keys(dataToShow).filter(key => 
+  const fields = Object.keys(dataToShow).filter(key =>
     !ignoredFields.includes(key) && dataToShow[key] !== null
   );
 
@@ -208,12 +207,12 @@ export default function AuditPage() {
       const [logsRes, comRes, evRes] = await Promise.all([p1, p2, p3]);
 
       if (logsRes.error) throw logsRes.error;
-      
+
       const cMap: Record<string, string> = {};
       const eMap: Record<string, string> = {};
       if (comRes.data) comRes.data.forEach(c => cMap[c.id] = c.name);
       if (evRes.data) evRes.data.forEach(e => eMap[e.id] = e.name);
-      
+
       setDictionaries({ committees: cMap, eventTypes: eMap });
       setLogs(logsRes.data || []);
     } catch (error) {

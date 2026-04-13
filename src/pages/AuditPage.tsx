@@ -50,7 +50,7 @@ const ENTITY_LABELS: Record<string, string> = {
   request_types: "Tipo de Solicitud"
 };
 
-const formatServerDate = (dateString: string, includeSeconds = false) => {
+const formatServerDate = (dateString: string, includeSeconds = false, adjustmentHours = -5) => {
   if (!dateString) return '';
 
   // Normalize to ISO format if needed (PostgreSQL timestamptz format: YYYY-MM-DD HH:MM:SS+TZ)
@@ -77,15 +77,15 @@ const formatServerDate = (dateString: string, includeSeconds = false) => {
   // Create UTC date
   const utcDate = new Date(Date.UTC(year, month, day, hour, minute, second));
 
-  // Convert to UTC-5
-  const utcMinus5Date = new Date(utcDate.getTime() - (5 * 60 * 60 * 1000)); // Subtract 5 hours
+  // Adjust timezone
+  const targetDate = new Date(utcDate.getTime() + (adjustmentHours * 60 * 60 * 1000));
 
-  const displayYear = utcMinus5Date.getUTCFullYear();
-  const displayMonth = utcMinus5Date.getUTCMonth(); // 0-based
-  const displayDay = utcMinus5Date.getUTCDate();
-  const displayHour = utcMinus5Date.getUTCHours();
-  const displayMinute = utcMinus5Date.getUTCMinutes();
-  const displaySecond = utcMinus5Date.getUTCSeconds();
+  const displayYear = targetDate.getUTCFullYear();
+  const displayMonth = targetDate.getUTCMonth(); // 0-based
+  const displayDay = targetDate.getUTCDate();
+  const displayHour = targetDate.getUTCHours();
+  const displayMinute = targetDate.getUTCMinutes();
+  const displaySecond = targetDate.getUTCSeconds();
 
   const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   const monthName = months[displayMonth];
@@ -118,7 +118,7 @@ const formatAuditValue = (value: any, key?: string, dictionaries?: any): React.R
 
   // Si es una fecha (ISO string simple o con Z)
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
-    return formatServerDate(value);
+    return formatServerDate(value, false, 0); // Add 10 hours for details dates
   }
 
   return String(value);
@@ -169,7 +169,15 @@ const RenderAuditDetails = ({ log, dictionaries }: { log: AuditLog, dictionaries
 
   const fields = Object.keys(dataToShow).filter(key =>
     !ignoredFields.includes(key) && dataToShow[key] !== null
-  );
+  ).sort((a, b) => {
+    const priorityOrder = ['start_time', 'end_time'];
+    const aIndex = priorityOrder.indexOf(a);
+    const bIndex = priorityOrder.indexOf(b);
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    return a.localeCompare(b);
+  });
 
   return (
     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
@@ -399,7 +407,7 @@ export default function AuditPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar size={14} />
-                        {formatServerDate(log.created_at, true)}
+                        {formatServerDate(log.created_at, true, -5)}
                       </div>
                     </div>
 

@@ -438,7 +438,7 @@ export default function Home() {
       )}
 
       {/* Contenedor Calendario */}
-      <div className="flex-1 bg-white md:rounded-3xl shadow-sm border-b md:border border-gray-100 p-3 md:p-6 flex flex-col transition-colors duration-200 order-2 lg:order-1">
+      <div className="flex-1 bg-white md:rounded-3xl shadow-sm border-b md:border border-gray-100 p-3 md:p-6 flex flex-col transition-colors duration-200 order-1">
 
         <header className="flex flex-row justify-between items-center mb-3 md:mb-6 px-1 md:px-0">
           <div>
@@ -566,7 +566,7 @@ export default function Home() {
 
       {/* Avisos (Modo Tablet) — Abajo del calendario */}
       {!isMobile && (
-        <div className="w-full lg:hidden order-3 pt-2">
+        <div className="w-full lg:hidden order-2 pt-2">
           {renderAvisos()}
         </div>
       )}
@@ -581,7 +581,7 @@ export default function Home() {
 
       {/* Notificaciones en Mobile — Sección scrolleable debajo del calendario */}
       {isMobile && (
-        <div id="notifications-section" className="px-4 pt-4 pb-24">
+        <div id="notifications-section" className="px-4 pt-4 pb-24 order-2">
           <h3 className="font-semibold text-[#1d1d1f] mb-3 flex items-center gap-2 text-base">
             <Bell size={18} className="text-logo-primary" />
             Avisos

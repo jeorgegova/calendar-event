@@ -50,10 +50,10 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-md animate-in fade-in duration-200" 
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-md animate-in fade-in duration-200 z-[60]"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -61,7 +61,7 @@ export const Modal: React.FC<ModalProps> = ({
       {/* Modal Content */}
       <div
         className={cn(
-          "relative bg-white rounded-3xl shadow-2xl w-full max-h-[90vh] overflow-y-auto z-10",
+          "relative bg-white rounded-3xl shadow-2xl w-full max-h-[90vh] overflow-y-auto z-[70]",
           "animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300 ease-out",
           sizeClasses[size],
           className
@@ -70,7 +70,7 @@ export const Modal: React.FC<ModalProps> = ({
         {/* Close button — always visible */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all text-gray-400 hover:text-gray-600 z-10 active:scale-90"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-all text-gray-400 hover:text-gray-600 z-[80] active:scale-90"
         >
           <X size={16} strokeWidth={2.5} />
         </button>

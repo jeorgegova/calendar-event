@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppLayout } from "./components/layout/AppLayout";
 import Home from "./pages/Home";
 import EventsPage from "./pages/EventsPage";
@@ -11,25 +12,39 @@ import ProfilePage from "./pages/ProfilePage";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage";
 import UpdatePasswordPage from "./pages/auth/UpdatePasswordPage";
 
+// Create a client with optimized settings for caching
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+  },
+});
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/update-password" element={<UpdatePasswordPage />} />
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Home />} />
-          <Route path="/eventos" element={<EventsPage />} />
-          <Route path="/comites" element={<CommitteesPage />} />
-          <Route path="/avisos" element={<NoticesPage />} />
-          <Route path="/parametros" element={<ParametersPage />} />
-          <Route path="/usuarios" element={<UsersPage />} />
-          <Route path="/auditoria" element={<AuditPage />} />
-          <Route path="/perfil" element={<ProfilePage />} />
-          <Route path="*" element={<div className="p-8">404 No Encontrado</div>} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/update-password" element={<UpdatePasswordPage />} />
+          <Route path="/" element={<AppLayout />}>
+            <Route index element={<Home />} />
+            <Route path="eventos" element={<EventsPage />} />
+            <Route path="comites" element={<CommitteesPage />} />
+            <Route path="avisos" element={<NoticesPage />} />
+            <Route path="parametros" element={<ParametersPage />} />
+            <Route path="usuarios" element={<UsersPage />} />
+            <Route path="auditoria" element={<AuditPage />} />
+            <Route path="perfil" element={<ProfilePage />} />
+            <Route path="*" element={<div className="p-8">404 No Encontrado</div>} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 

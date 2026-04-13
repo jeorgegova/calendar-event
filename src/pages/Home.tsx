@@ -1,4 +1,5 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -27,17 +28,6 @@ interface Notice {
   created_at: string;
 }
 
-interface Event {
-  id: string;
-  title: string;
-  committee_id: string | null;
-  event_type_id: string | null;
-  start_time: string;
-  end_time: string;
-  motto: string | null;
-  committees?: Comite;
-}
-
 // ── Eventos cargados desde Supabase ──────────────────
 const BIBLE_BOOKS = [
   "Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio", "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Crónicas", "2 Crónicas", "Esdras", "Nehemías", "Ester", "Job", "Salmos", "Proverbios", "Eclesiastés", "Cantares", "Isaías", "Jeremías", "Lamentaciones", "Ezequiel", "Daniel", "Oseas", "Joel", "Amós", "Abdías", "Jonás", "Miqueas", "Nahúm", "Habacuc", "Sofonías", "Hageo", "Zacarías", "Malaquías", "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos", "1 Corintios", "2 Corintios", "Gálatas", "Efesios", "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses", "1 Timoteo", "2 Timoteo", "Tito", "Filemón", "Hebreos", "Santiago", "1 Pedro", "2 Pedro", "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
@@ -55,12 +45,10 @@ export default function Home() {
   const calendarRef = useRef<FullCalendar>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [selectedComites, setSelectedComites] = useState<string[]>([]); // vacío = todos
-  const [committees, setCommittees] = useState<Comite[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [notices, setNotices] = useState<Notice[]>([]);
   const [hoveredEvent, setHoveredEvent] = useState<any>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+
 
   // Track desktop breakpoint
   useEffect(() => {
@@ -69,24 +57,28 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load data from Supabase
-  useEffect(() => {
-    loadData();
-  }, []);
 
-  const loadData = async () => {
-    try {
-      // Load committees
-      const { data: committeesData, error: committeesError } = await supabase
+
+  // Fetch committees with React Query
+  const { data: committees = [], error: committeesError } = useQuery({
+    queryKey: ['committees'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('committees')
         .select('*')
         .eq('is_active', true)
         .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
 
-      if (committeesError) throw committeesError;
-
-      // Load events with committee info
-      const { data: eventsData, error: eventsError } = await supabase
+  // Fetch all events with React Query for immediate display
+  const eventsQuery = useQuery({
+    queryKey: ['events'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('events')
         .select(`
           *,
@@ -97,20 +89,37 @@ export default function Home() {
           )
         `)
         .order('start_time');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 0, // Always refetch for immediate updates
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  });
 
-      if (eventsError) throw eventsError;
+  const events = eventsQuery.data || [];
+  const eventsError = eventsQuery.error;
 
-      // Load active notices
-      const { data: noticesData, error: noticesError } = await supabase
+  // Fetch notices with React Query
+  const { data: noticesData = [], error: noticesError } = useQuery({
+    queryKey: ['notices'],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('notices')
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(10);
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
-      if (noticesError) throw noticesError;
-
-      // Generar versículo de forma dinámica desde una API
+  // Fetch verse of the day
+  const { data: verseOfTheDay, error: verseError } = useQuery({
+    queryKey: ['verse-of-day'],
+    queryFn: async () => {
       const today = new Date();
       let verseData = null;
       try {
@@ -126,27 +135,34 @@ export default function Home() {
         console.error('Error fetching random verse', err);
       }
 
-      // Si la API falla, seleccionamos uno estático por fecha del año
       if (!verseData) {
         const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
         verseData = FALLBACK_VERSES[dayOfYear % FALLBACK_VERSES.length];
       }
 
-      const verseOfTheDay: Notice = {
+      return {
         id: `verse-api-${today.getTime()}`,
         title: "Versículo del Día",
         content: verseData.content,
         is_active: true,
         created_at: today.toISOString()
-      };
+      } as Notice;
+    },
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours - verse doesn't change daily
+  });
 
-      setCommittees(committeesData || []);
-      setEvents(eventsData || []);
-      setNotices([verseOfTheDay, ...(noticesData || [])]);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    }
-  };
+  // Log errors for debugging
+  useEffect(() => {
+    if (committeesError) console.error('Error loading committees:', committeesError);
+    if (eventsError) console.error('Error loading events:', eventsError);
+    if (noticesError) console.error('Error loading notices:', noticesError);
+    if (verseError) console.error('Error loading verse:', verseError);
+  }, [committeesError, eventsError, noticesError, verseError]);
+
+  // Combine notices with verse
+  const notices = useMemo(() => {
+    return verseOfTheDay ? [verseOfTheDay, ...noticesData] : noticesData;
+  }, [verseOfTheDay, noticesData]);
 
   // ── Toggle comité ──────────────────────────────────────────────────
   const toggleComite = (id: string) => {
@@ -163,23 +179,25 @@ export default function Home() {
   const isAllSelected = selectedComites.length === 0;
 
   // ── Filtrar eventos ────────────────────────────────────────────────
-  const filteredEvents = events
-    .filter(ev => selectedComites.length === 0 || (ev.committee_id && selectedComites.includes(ev.committee_id)))
-    .map(ev => ({
-      id: ev.id,
-      title: ev.title,
-      start: ev.start_time,
-      end: ev.end_time,
-      backgroundColor: ev.committees?.color_hex ?? "#2997ff",
-      borderColor: ev.committees?.color_hex ?? "#2997ff",
-      extendedProps: {
-        committee_id: ev.committee_id,
-        committeeName: ev.committees?.name,
-        motto: ev.motto,
-        startTime: ev.start_time,
-        endTime: ev.end_time
-      },
-    }));
+  const filteredEvents = useMemo(() => {
+    return events
+      .filter(ev => selectedComites.length === 0 || (ev.committee_id && selectedComites.includes(ev.committee_id)))
+      .map(ev => ({
+        id: ev.id,
+        title: ev.title,
+        start: ev.start_time,
+        end: ev.end_time,
+        backgroundColor: ev.committees?.color_hex ?? "#2997ff",
+        borderColor: ev.committees?.color_hex ?? "#2997ff",
+        extendedProps: {
+          committee_id: ev.committee_id,
+          committeeName: ev.committees?.name,
+          motto: ev.motto,
+          startTime: ev.start_time,
+          endTime: ev.end_time
+        },
+      }));
+  }, [events, selectedComites]);
 
   // ── Vista / transiciones ───────────────────────────────────────────
   // Para que el calendario resalte "Hoy" correctamente según la hora local 

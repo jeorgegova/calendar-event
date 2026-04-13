@@ -147,8 +147,8 @@ export default function EventsPage() {
           .from('events')
           .update({
             title: formData.title,
-            committee_id: formData.committee_id || null,
-            event_type_id: formData.event_type_id || null,
+            committee_id: formData.committee_id,
+            event_type_id: formData.event_type_id,
             start_time: fromInputToUTC(formData.start_time),
             end_time: fromInputToUTC(formData.end_time),
             motto: formData.motto || null,
@@ -181,8 +181,8 @@ export default function EventsPage() {
           .from('events')
           .insert([{
             title: formData.title,
-            committee_id: formData.committee_id || null,
-            event_type_id: formData.event_type_id || null,
+            committee_id: formData.committee_id,
+            event_type_id: formData.event_type_id,
             start_time: fromInputToUTC(formData.start_time),
             end_time: fromInputToUTC(formData.end_time),
             motto: formData.motto || null,
@@ -538,14 +538,16 @@ export default function EventsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
-                    Comité
+                    Comité *
                   </label>
                   <select
+                    required
+                    {...getSpanishValidationProps("Por favor, selecciona un comité")}
                     value={formData.committee_id}
                     onChange={(e) => setFormData({ ...formData, committee_id: e.target.value })}
                     className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
                   >
-                    <option value="">Opcional</option>
+                    <option value="">Seleccione opción...</option>
                     {committees.map(committee => (
                       <option key={committee.id} value={committee.id}>{committee.name}</option>
                     ))}
@@ -553,14 +555,16 @@ export default function EventsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
-                    Tipo de Evento
+                    Tipo de Evento *
                   </label>
                   <select
+                    required
+                    {...getSpanishValidationProps("Por favor, selecciona un tipo de evento")}
                     value={formData.event_type_id}
                     onChange={(e) => setFormData({ ...formData, event_type_id: e.target.value })}
                     className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
                   >
-                    <option value="">Opcional</option>
+                    <option value="">Seleccione opción...</option>
                     {eventTypes.map(type => (
                       <option key={type.id} value={type.id}>{type.name}</option>
                     ))}

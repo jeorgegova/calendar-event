@@ -53,8 +53,15 @@ const ENTITY_LABELS: Record<string, string> = {
 const formatServerDate = (dateString: string, includeSeconds = false) => {
   if (!dateString) return '';
 
+  // Normalize to ISO format if needed (PostgreSQL timestamptz format: YYYY-MM-DD HH:MM:SS+TZ)
+  let isoString = dateString;
+  if (dateString.includes(' ') && !dateString.includes('T')) {
+    // Convert PostgreSQL format to ISO
+    isoString = dateString.replace(' ', 'T').replace(/\+00$/, 'Z');
+  }
+
   // Parse as UTC and convert to UTC-5
-  const utcDate = new Date(dateString + (dateString.includes('Z') ? '' : 'Z'));
+  const utcDate = new Date(isoString);
   const utcMinus5Date = new Date(utcDate.getTime() - (5 * 60 * 60 * 1000)); // Subtract 5 hours
 
   const year = utcMinus5Date.getFullYear();

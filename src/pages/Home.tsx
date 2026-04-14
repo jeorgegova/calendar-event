@@ -20,18 +20,33 @@ interface Comite {
   is_active: boolean;
 }
 
-interface Notice {
-  id: string;
-  title: string;
-  content: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
 // ── Eventos cargados desde Supabase ──────────────────
-const BIBLE_BOOKS = [
-  "Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio", "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes", "1 Crónicas", "2 Crónicas", "Esdras", "Nehemías", "Ester", "Job", "Salmos", "Proverbios", "Eclesiastés", "Cantares", "Isaías", "Jeremías", "Lamentaciones", "Ezequiel", "Daniel", "Oseas", "Joel", "Amós", "Abdías", "Jonás", "Miqueas", "Nahúm", "Habacuc", "Sofonías", "Hageo", "Zacarías", "Malaquías", "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos", "1 Corintios", "2 Corintios", "Gálatas", "Efesios", "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses", "1 Timoteo", "2 Timoteo", "Tito", "Filemón", "Hebreos", "Santiago", "1 Pedro", "2 Pedro", "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
+const ALL_BOOKS = [
+  "Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio",
+  "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes",
+  "1 Crónicas", "2 Crónicas", "Esdras", "Nehemías", "Ester", "Job",
+  "Salmos", "Proverbios", "Eclesiastés", "Cantares",
+  "Isaías", "Jeremías", "Lamentaciones", "Ezequiel", "Daniel",
+  "Oseas", "Joel", "Amós", "Abdías", "Jonás", "Miqueas",
+  "Nahúm", "Habacuc", "Sofonías", "Hageo", "Zacarías", "Malaquías",
+  "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos",
+  "1 Corintios", "2 Corintios", "Gálatas", "Efesios",
+  "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses",
+  "1 Timoteo", "2 Timoteo", "Tito", "Filemón",
+  "Hebreos", "Santiago", "1 Pedro", "2 Pedro",
+  "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
 ];
+
+const ALLOWED_BOOKS = new Set([
+  "Salmos",
+  "Proverbios",
+  "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos",
+  "1 Corintios", "2 Corintios", "Gálatas", "Efesios",
+  "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses",
+  "1 Timoteo", "2 Timoteo", "Tito", "Filemón",
+  "Hebreos", "Santiago", "1 Pedro", "2 Pedro",
+  "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
+]);
 
 const FALLBACK_VERSES = [
   { content: "Todo lo puedo en Cristo que me fortalece. - Filipenses 4:13" },
@@ -122,21 +137,44 @@ export default function Home() {
     queryFn: async () => {
       const today = new Date();
       let verseData = null;
+
       try {
-        const response = await fetch('https://bolls.life/get-random-verse/RV1960/');
-        if (response.ok) {
-          const apiVerse = await response.json();
-          const bookName = BIBLE_BOOKS[apiVerse.book - 1] || "Libro Desconocido";
-          verseData = {
-            content: `${apiVerse.text} - ${bookName} ${apiVerse.chapter}:${apiVerse.verse}`
-          };
+        let attempts = 0;
+
+        while (attempts < 5) {
+          const response = await fetch('https://bolls.life/get-random-verse/RV1960/');
+
+          if (response.ok) {
+            const apiVerse = await response.json();
+
+            const bookName = ALL_BOOKS[apiVerse.book - 1];
+
+            if (!bookName) {
+              attempts++;
+              continue;
+            }
+
+            if (bookName && ALLOWED_BOOKS.has(bookName)) {
+              verseData = {
+                content: `${apiVerse.text} - ${bookName} ${apiVerse.chapter}:${apiVerse.verse}`
+              };
+              break;
+            }
+          }
+
+          attempts++;
         }
+
       } catch (err) {
         console.error('Error fetching random verse', err);
       }
 
       if (!verseData) {
-        const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
+        const dayOfYear = Math.floor(
+          (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
+          1000 / 60 / 60 / 24
+        );
+
         verseData = FALLBACK_VERSES[dayOfYear % FALLBACK_VERSES.length];
       }
 
@@ -146,7 +184,7 @@ export default function Home() {
         content: verseData.content,
         is_active: true,
         created_at: today.toISOString()
-      } as Notice;
+      };
     },
     staleTime: 24 * 60 * 60 * 1000, // 24 hours - verse doesn't change daily
   });

@@ -146,6 +146,9 @@ export default function Home() {
 
           if (response.ok) {
             const apiVerse = await response.json();
+            const cleanText = apiVerse.text
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<[^>]+>/g, '');
 
             const bookName = ALL_BOOKS[apiVerse.book - 1];
 
@@ -156,7 +159,7 @@ export default function Home() {
 
             if (bookName && ALLOWED_BOOKS.has(bookName)) {
               verseData = {
-                content: `${apiVerse.text} - ${bookName} ${apiVerse.chapter}:${apiVerse.verse}`
+                content: `${cleanText} - ${bookName} ${apiVerse.chapter}:${apiVerse.verse}`
               };
               break;
             }

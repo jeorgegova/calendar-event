@@ -11,6 +11,7 @@ import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { formatDateUTC, formatTimeUTC } from "../lib/dateUtils";
 import { createPortal } from "react-dom";
+import bibleData from "../assets/RVR1960-Spanish.json";
 
 // ── Interfaces ─────────────────────────────────────────────────────────
 interface Comite {
@@ -21,21 +22,6 @@ interface Comite {
 }
 
 // ── Eventos cargados desde Supabase ──────────────────
-const ALL_BOOKS = [
-  "Génesis", "Éxodo", "Levítico", "Números", "Deuteronomio",
-  "Josué", "Jueces", "Rut", "1 Samuel", "2 Samuel", "1 Reyes", "2 Reyes",
-  "1 Crónicas", "2 Crónicas", "Esdras", "Nehemías", "Ester", "Job",
-  "Salmos", "Proverbios", "Eclesiastés", "Cantares",
-  "Isaías", "Jeremías", "Lamentaciones", "Ezequiel", "Daniel",
-  "Oseas", "Joel", "Amós", "Abdías", "Jonás", "Miqueas",
-  "Nahúm", "Habacuc", "Sofonías", "Hageo", "Zacarías", "Malaquías",
-  "Mateo", "Marcos", "Lucas", "Juan", "Hechos", "Romanos",
-  "1 Corintios", "2 Corintios", "Gálatas", "Efesios",
-  "Filipenses", "Colosenses", "1 Tesalonicenses", "2 Tesalonicenses",
-  "1 Timoteo", "2 Timoteo", "Tito", "Filemón",
-  "Hebreos", "Santiago", "1 Pedro", "2 Pedro",
-  "1 Juan", "2 Juan", "3 Juan", "Judas", "Apocalipsis"
-];
 
 const ALLOWED_BOOKS = new Set([
   "Salmos",
@@ -53,6 +39,29 @@ const FALLBACK_VERSES = [
   { content: "El Señor es mi pastor, nada me faltará. - Salmos 23:1" },
   { content: "Jehová es mi luz y mi salvación; ¿de quién temeré? - Salmos 27:1" }
 ];
+
+// Procesar versículos del archivo local
+const processLocalVerses = () => {
+  const verses = [];
+  for (const bookName of ALLOWED_BOOKS) {
+    if (bibleData[bookName]) {
+      const book = bibleData[bookName];
+      for (const chapter in book) {
+        for (const verse in book[chapter]) {
+          verses.push({
+            book: bookName,
+            chapter: parseInt(chapter),
+            verse: parseInt(verse),
+            content: book[chapter][verse]
+          });
+        }
+      }
+    }
+  }
+  return verses;
+};
+
+const LOCAL_VERSES = processLocalVerses();
 
 // ── Componente ──────────────────────────────────────────────────────────
 export default function Home() {
@@ -131,60 +140,47 @@ export default function Home() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch verse of the day
+  // Fetch verse of the day from local file
   const { data: verseOfTheDay, error: verseError } = useQuery({
     queryKey: ['verse-of-day'],
     queryFn: async () => {
       const today = new Date();
-      let verseData = null;
 
       try {
-        let attempts = 0;
+        if (LOCAL_VERSES.length > 0) {
+          // Usar la fecha del día para seleccionar un versículo consistente
+          const dayOfYear = Math.floor(
+            (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
+            1000 / 60 / 60 / 24
+          );
 
-        while (attempts < 5) {
-          const response = await fetch('https://bolls.life/get-random-verse/RV1960/');
+          const verseIndex = dayOfYear % LOCAL_VERSES.length;
+          const selectedVerse = LOCAL_VERSES[verseIndex];
 
-          if (response.ok) {
-            const apiVerse = await response.json();
-            const cleanText = apiVerse.text
-              .replace(/<br\s*\/?>/gi, '\n')
-              .replace(/<[^>]+>/g, '');
-
-            const bookName = ALL_BOOKS[apiVerse.book - 1];
-
-            if (!bookName) {
-              attempts++;
-              continue;
-            }
-
-            if (bookName && ALLOWED_BOOKS.has(bookName)) {
-              verseData = {
-                content: `${cleanText} - ${bookName} ${apiVerse.chapter}:${apiVerse.verse}`
-              };
-              break;
-            }
-          }
-
-          attempts++;
+          return {
+            id: `verse-local-${today.getTime()}`,
+            title: "Versículo del Día",
+            content: `${selectedVerse.content} - ${selectedVerse.book} ${selectedVerse.chapter}:${selectedVerse.verse}`,
+            is_active: true,
+            created_at: today.toISOString()
+          };
         }
-
       } catch (err) {
-        console.error('Error fetching random verse', err);
+        console.error('Error processing local verses', err);
       }
 
-      if (!verseData) {
-        const dayOfYear = Math.floor(
-          (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
-          1000 / 60 / 60 / 24
-        );
+      // Fallback si algo falla
+      const dayOfYear = Math.floor(
+        (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
+        1000 / 60 / 60 / 24
+      );
 
-        verseData = FALLBACK_VERSES[dayOfYear % FALLBACK_VERSES.length];
-      }
+      const fallbackVerse = FALLBACK_VERSES[dayOfYear % FALLBACK_VERSES.length];
 
       return {
-        id: `verse-api-${today.getTime()}`,
+        id: `verse-fallback-${today.getTime()}`,
         title: "Versículo del Día",
-        content: verseData.content,
+        content: fallbackVerse.content,
         is_active: true,
         created_at: today.toISOString()
       };
@@ -335,33 +331,47 @@ export default function Home() {
     setHoveredEvent(null);
   };
 
+  // ── Helper para determinar si un evento ya pasó ───────────────────
+  const isEventPast = (endTime: string) => {
+    const eventEnd = new Date(endTime);
+    const now = new Date();
+    return eventEnd < now;
+  };
+
   // ── Custom Event Content para todas las vistas ─────────────────────
   const renderEventContent = (eventInfo: any) => {
+    const isPast = isEventPast(eventInfo.event.extendedProps.endTime);
+    const eventClasses = isPast ? 'opacity-60' : 'opacity-100';
     // Vista de LISTA (Detalle completo)
     if (eventInfo.view.type.includes('list')) {
       return (
-        <div className="flex flex-col gap-1 py-1 w-full">
+        <div className={cn("flex flex-col gap-1 py-1 w-full", eventClasses)}>
+          {/* Título del evento */}
+          <span className="font-bold text-[#1d1d1f] text-sm truncate">{eventInfo.event.title}</span>
+
+          {/* Comité y hora en la misma línea */}
           <div className="flex items-center justify-between gap-2">
-            <span className="font-bold text-[#1d1d1f] text-sm">{eventInfo.event.title}</span>
             <span
-              className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white max-w-24 truncate"
               style={{ backgroundColor: eventInfo.event.backgroundColor }}
             >
               {eventInfo.event.extendedProps.committeeName || 'General'}
             </span>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-[#86868b]">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 text-xs text-[#86868b] shrink-0">
               <Clock size={12} className="text-logo-primary" />
-              {formatTimeUTC(eventInfo.event.extendedProps.startTime)} - {formatTimeUTC(eventInfo.event.extendedProps.endTime)}
+              <span className="truncate">
+                {formatTimeUTC(eventInfo.event.extendedProps.startTime)} - {formatTimeUTC(eventInfo.event.extendedProps.endTime)}
+              </span>
             </div>
-            {eventInfo.event.extendedProps.motto && (
-              <div className="flex items-center gap-1 italic underline decoration-gray-200 decoration-1">
-                <Tag size={12} className="text-gray-400" />
-                "{eventInfo.event.extendedProps.motto}"
-              </div>
-            )}
           </div>
+
+          {/* Motto si existe */}
+          {eventInfo.event.extendedProps.motto && (
+            <div className="flex items-center gap-1 italic underline decoration-gray-200 decoration-1 text-xs text-[#86868b]">
+              <Tag size={12} className="text-gray-400" />
+              <span className="truncate">"{eventInfo.event.extendedProps.motto}"</span>
+            </div>
+          )}
         </div>
       );
     }
@@ -369,7 +379,7 @@ export default function Home() {
     // Vista de SEMANA / DÍA (Espacio vertical)
     if (eventInfo.view.type.includes('timeGrid')) {
       return (
-        <div className="flex flex-col gap-1 p-1 w-full h-full overflow-hidden leading-tight">
+        <div className={cn("flex flex-col gap-1 p-1 w-full h-full overflow-hidden leading-tight", eventClasses)}>
           <span className="font-bold text-white text-[11px] leading-none mb-0.5">
             {eventInfo.event.title}
           </span>
@@ -393,7 +403,7 @@ export default function Home() {
 
     // Vista de MES / REJILLA (Compacto)
     return (
-      <div className="flex items-center gap-1 px-1 py-0.5 overflow-hidden w-full group">
+      <div className={cn("flex items-center gap-1 px-1 py-0.5 overflow-hidden w-full group", eventClasses)}>
         <div
           className="w-2 h-2 rounded-full shrink-0 shadow-sm"
           style={{ backgroundColor: eventInfo.event.backgroundColor }}

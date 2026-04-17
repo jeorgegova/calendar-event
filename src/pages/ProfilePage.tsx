@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { User, Mail, Lock, Shield, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, Mail, Lock, Shield, CheckCircle2, AlertCircle, LogOut } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { getSpanishValidationProps } from "../lib/formUtils";
+import { useNavigate } from "react-router-dom";
 
 export default function ProfilePage() {
   const { profile, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   
@@ -83,6 +85,15 @@ export default function ProfilePage() {
       setMessage({ type: 'error', text: "Error al cambiar la contraseña" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate("/");
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
     }
   };
 
@@ -214,6 +225,35 @@ export default function ProfilePage() {
                 {loading ? "Cambiando..." : "Actualizar Contraseña"}
               </Button>
             </form>
+          </div>
+        </div>
+
+        {/* Account Settings / Logout */}
+        <div className="mt-8">
+          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <Shield className="text-logo-primary" size={20} />
+              <h2 className="text-lg font-bold text-logo-dark">Cuenta</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-red-50 border border-red-100 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <LogOut className="text-red-600" size={20} />
+                  <div>
+                    <h3 className="text-sm font-semibold text-red-900">Cerrar Sesión</h3>
+                    <p className="text-xs text-red-700">Finalizar tu sesión actual</p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleLogout}
+                  variant="danger"
+                  className="px-4 py-2 text-sm"
+                >
+                  Cerrar Sesión
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

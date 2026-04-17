@@ -200,7 +200,7 @@ export const AppLayout = () => {
         {(profileReady || isMobileMenuOpen) && (
           <aside
             className={cn(
-              "fixed md:sticky top-0 left-0 h-screen w-72 bg-white z-50 flex flex-col shadow-2xl md:shadow-sm transition-transform duration-300 ease-out",
+              "fixed md:sticky top-0 bottom-20 md:bottom-0 left-0 w-72 bg-white z-50 flex flex-col shadow-2xl md:shadow-sm transition-transform duration-300 ease-out rounded-br-2xl md:rounded-none",
               isMobile
                 ? (isMobileMenuOpen ? "translate-x-0" : "-translate-x-full")
                 : "translate-x-0"
@@ -272,18 +272,21 @@ export const AppLayout = () => {
                   </Link>
                 );
               })}
-            </nav>
 
-            <div className="p-4 border-t border-gray-100 bg-white">
-              {profileReady ? (
-                <button onClick={handleLogout} className="flex items-center justify-center gap-3 w-full px-3 py-3 rounded-xl text-[15px] font-medium text-logo-danger bg-logo-danger/5 hover:bg-logo-danger/15 active:scale-95 transition-all">
-                  <LogOut size={20} />
-                  Cerrar Sesión
+              {/* Separator line */}
+              {profileReady && <div className="border-t border-gray-200 my-2"></div>}
+
+              {/* Logout button as last menu item */}
+              {profileReady && (
+                <button
+                  onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
+                  className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group relative w-full text-logo-danger hover:bg-logo-danger/5"
+                >
+                  <LogOut size={20} className="text-logo-danger group-hover:text-red-700 transition-colors duration-300" />
+                  <span className="text-sm">Cerrar Sesión</span>
                 </button>
-              ) : (
-                <div className="text-center w-full"></div>
               )}
-            </div>
+            </nav>
           </aside>
         )}
 

@@ -43,9 +43,11 @@ const FALLBACK_VERSES = [
 // Procesar versículos del archivo local
 const processLocalVerses = () => {
   const verses = [];
+  const bibleDataTyped = bibleData as any; // Type assertion para evitar errores de TypeScript
+
   for (const bookName of ALLOWED_BOOKS) {
-    if (bibleData[bookName]) {
-      const book = bibleData[bookName];
+    if (bibleDataTyped[bookName]) {
+      const book = bibleDataTyped[bookName];
       for (const chapter in book) {
         for (const verse in book[chapter]) {
           verses.push({

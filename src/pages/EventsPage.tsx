@@ -289,6 +289,11 @@ export default function EventsPage() {
       end_time: toUTCInputFormat(event.end_time),
       motto: event.motto || "",
       request_type_ids: event.event_requests?.map(er => er.request_types.id) || [],
+      repeat_enabled: false,
+      repeat_frequency: "weekly",
+      repeat_end_mode: "count",
+      repeat_count: 4,
+      repeat_end_date: "",
     });
     setIsModalOpen(true);
   };

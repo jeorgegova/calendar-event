@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Calendar, Settings, Users, Bell, LogOut, Tags, List, CalendarDays, Clock, UserCircle, Cog, Loader2, ChevronRight, Shield } from "lucide-react";
 import { cn } from "../../lib/utils";

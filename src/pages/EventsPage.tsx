@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag, Info, CheckCircle2 } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag, Info, CheckCircle2, Repeat } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -60,9 +60,57 @@ export default function EventsPage() {
     end_time: "",
     motto: "",
     request_type_ids: [] as string[],
+    repeat_enabled: false,
+    repeat_frequency: "weekly" as "daily" | "weekly" | "biweekly" | "monthly",
+    repeat_end_mode: "count" as "count" | "date",
+    repeat_count: 4,
+    repeat_end_date: "",
   });
 
   const canEdit = hasPermission('operador');
+
+  const generateRepeatDates = (
+    startDate: string,
+    frequency: "daily" | "weekly" | "biweekly" | "monthly",
+    endMode: "count" | "date",
+    count: number,
+    endDate: string
+  ): string[] => {
+    const dates: string[] = [startDate];
+    const current = new Date(startDate + "T00:00:00");
+
+    const addDays = (d: Date, days: number) => {
+      const r = new Date(d);
+      r.setDate(r.getDate() + days);
+      return r;
+    };
+
+    const step = frequency === "daily" ? 1 : frequency === "weekly" ? 7 : frequency === "biweekly" ? 14 : 0;
+    const maxIterations = 100;
+
+    for (let i = 0; i < maxIterations; i++) {
+      let next: Date;
+      if (frequency === "monthly") {
+        next = new Date(current);
+        next.setMonth(next.getMonth() + 1);
+      } else {
+        next = addDays(current, step);
+      }
+      current.setTime(next.getTime());
+
+      const iso = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+
+      if (endMode === "count") {
+        dates.push(iso);
+        if (dates.length >= count) break;
+      } else {
+        if (iso > endDate) break;
+        dates.push(iso);
+      }
+    }
+
+    return dates;
+  };
 
   useEffect(() => {
     loadData();
@@ -176,28 +224,36 @@ export default function EventsPage() {
           if (requestsError) throw requestsError;
         }
       } else {
-        // Create new event
-        const { data: newEvent, error: eventError } = await supabase
+        const { date: startDate } = splitDateTime(formData.start_time);
+        const { date: endDate } = splitDateTime(formData.end_time);
+
+        const repeatDates = formData.repeat_enabled
+          ? generateRepeatDates(startDate, formData.repeat_frequency, formData.repeat_end_mode, formData.repeat_count, formData.repeat_end_date)
+          : [startDate];
+
+        const eventsToInsert = repeatDates.map((date) => ({
+          title: formData.title,
+          committee_id: formData.committee_id,
+          event_type_id: formData.event_type_id,
+          start_time: fromInputToUTC(`${date}T${splitDateTime(formData.start_time).time}`),
+          end_time: fromInputToUTC(`${formData.repeat_enabled ? date : endDate}T${splitDateTime(formData.end_time).time}`),
+          motto: formData.motto || null,
+        }));
+
+        const { data: createdEvents, error: eventError } = await supabase
           .from('events')
-          .insert([{
-            title: formData.title,
-            committee_id: formData.committee_id,
-            event_type_id: formData.event_type_id,
-            start_time: fromInputToUTC(formData.start_time),
-            end_time: fromInputToUTC(formData.end_time),
-            motto: formData.motto || null,
-          }])
-          .select()
-          .single();
+          .insert(eventsToInsert)
+          .select();
 
         if (eventError) throw eventError;
 
-        // Add event requests
-        if (formData.request_type_ids.length > 0 && newEvent) {
-          const requestsToInsert = formData.request_type_ids.map(requestTypeId => ({
-            event_id: newEvent.id,
-            request_type_id: requestTypeId,
-          }));
+        if (formData.request_type_ids.length > 0 && createdEvents) {
+          const requestsToInsert = createdEvents.flatMap((ev: { id: string }) =>
+            formData.request_type_ids.map(requestTypeId => ({
+              event_id: ev.id,
+              request_type_id: requestTypeId,
+            }))
+          );
 
           const { error: requestsError } = await supabase
             .from('event_requests')
@@ -272,6 +328,11 @@ export default function EventsPage() {
       end_time: "",
       motto: "",
       request_type_ids: [],
+      repeat_enabled: false,
+      repeat_frequency: "weekly",
+      repeat_end_mode: "count",
+      repeat_count: 4,
+      repeat_end_date: "",
     });
   };
 
@@ -632,6 +693,127 @@ export default function EventsPage() {
               </div>
             </div>
           </div>
+
+          {/* Sección 2.5: Repetición (solo al crear) */}
+          {!editingEvent && (
+            <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100/50 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <Repeat size={16} className="text-blue-500" />
+                  </div>
+                  <h3 className="font-bold text-logo-dark">Repetir Evento</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, repeat_enabled: !prev.repeat_enabled }))}
+                  className={cn(
+                    "w-12 h-7 rounded-full transition-all duration-200 relative",
+                    formData.repeat_enabled ? "bg-blue-500" : "bg-gray-200"
+                  )}
+                >
+                  <div className={cn(
+                    "absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-200",
+                    formData.repeat_enabled ? "left-5.5" : "left-0.5"
+                  )} />
+                </button>
+              </div>
+
+              {formData.repeat_enabled && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                        Frecuencia
+                      </label>
+                      <select
+                        value={formData.repeat_frequency}
+                        onChange={(e) => setFormData(prev => ({ ...prev, repeat_frequency: e.target.value as any }))}
+                        className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-sm"
+                      >
+                        <option value="daily">Diario</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="biweekly">Quincenal</option>
+                        <option value="monthly">Mensual</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                        Termina
+                      </label>
+                      <select
+                        value={formData.repeat_end_mode}
+                        onChange={(e) => setFormData(prev => ({ ...prev, repeat_end_mode: e.target.value as any }))}
+                        className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-sm"
+                      >
+                        <option value="count">Después de N repeticiones</option>
+                        <option value="date">En una fecha específica</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {formData.repeat_end_mode === "count" ? (
+                    <div>
+                      <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                        Número de repeticiones
+                      </label>
+                      <div className="flex gap-2">
+                        {[2, 4, 8, 12].map(n => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, repeat_count: n }))}
+                            className={cn(
+                              "flex-1 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
+                              formData.repeat_count === n
+                                ? "bg-blue-500 text-white shadow-md"
+                                : "bg-white border border-gray-100 text-[#86868b] hover:border-blue-200"
+                            )}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                        <input
+                          type="number"
+                          min={1}
+                          max={52}
+                          value={formData.repeat_count}
+                          onChange={(e) => setFormData(prev => ({ ...prev, repeat_count: parseInt(e.target.value) || 1 }))}
+                          className="w-20 px-3 py-2.5 bg-white border border-gray-100 rounded-xl text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">
+                        Fecha límite
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        min={splitDateTime(formData.start_time).date}
+                        value={formData.repeat_end_date}
+                        onChange={(e) => setFormData(prev => ({ ...prev, repeat_end_date: e.target.value }))}
+                        className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm text-sm"
+                      />
+                    </div>
+                  )}
+
+                  {formData.repeat_enabled && splitDateTime(formData.start_time).date && (
+                    <p className="text-xs text-blue-600/70 pl-1">
+                      Se crearán <span className="font-bold">{generateRepeatDates(
+                        splitDateTime(formData.start_time).date,
+                        formData.repeat_frequency,
+                        formData.repeat_end_mode,
+                        formData.repeat_count,
+                        formData.repeat_end_date
+                      ).length}</span> eventos en total
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Sección 3: Detalles y Solicitudes */}
           <div className="space-y-4 px-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Calendar, Settings, Users, Bell, LogOut, Tags, List, CalendarDays, Clock, UserCircle, Cog, Loader2, ChevronRight, Shield } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { LoginModal } from "../auth/LoginModal";
 import { Modal } from "../ui/Modal";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { useNewNotices } from "../../hooks/useNewNotices";
 import { useAuth } from "../../context/AuthContext";
 import { formatDateUTC } from "../../lib/dateUtils";
 import logo from "../../assets/logo_fondo_negro.png";
@@ -27,8 +28,8 @@ export const AppLayout = () => {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { isAuthenticated, hasPermission, profile, loading: authLoading } = useAuth();
+  const { newCount, markAllAsSeen } = useNewNotices();
 
-  // Sidebar should only appear when profile is fully loaded
   const profileReady = profile !== null;
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
   const [isLogoutModalOpen, setLogoutModalOpen] = useState(false);
@@ -54,6 +55,13 @@ export const AppLayout = () => {
     return () => window.removeEventListener("calendar:viewChanged", handler);
   }, []);
 
+  // Listen for notices viewed event (from scroll/intersection observer)
+  useEffect(() => {
+    const handler = () => markAllAsSeen();
+    window.addEventListener("notices:viewed", handler);
+    return () => window.removeEventListener("notices:viewed", handler);
+  }, [markAllAsSeen]);
+
   const handleLogout = async () => {
     setLogoutModalOpen(true);
   };
@@ -71,12 +79,13 @@ export const AppLayout = () => {
 
   // Scroll to notifications section (mobile bottom nav)
   const scrollToNotifications = () => {
+    markAllAsSeen();
     if (location.pathname !== "/") {
       navigate("/");
       setTimeout(() => {
         const el = document.getElementById("notifications-section");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 300); // Un poco más de tiempo para el scroll
+      }, 300);
     } else {
       const el = document.getElementById("notifications-section");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -324,18 +333,27 @@ export const AppLayout = () => {
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200/80 flex justify-around items-end pt-1.5 z-40 bottom-nav-safe">
           {mobileBottomItems.map((item, idx) => {
             const isActive = !item.isScroll && activeView === item.viewKey;
+            const isAvisos = item.isScroll;
+            const badge = isAvisos ? newCount : 0;
             return (
               <button
                 key={idx}
                 onClick={() => item.action?.()}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 active:scale-90",
+                  "flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all duration-200 active:scale-90 relative",
                   isActive
                     ? "text-logo-primary bg-logo-primary/10"
                     : "text-logo-gray"
                 )}
               >
-                <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
+                <div className="relative">
+                  <item.icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
+                  {badge > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 leading-none">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </div>
                 <span className={cn("text-[10px] font-semibold", isActive && "text-logo-primary")}>{item.label}</span>
               </button>
             );

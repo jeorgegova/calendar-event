@@ -74,6 +74,37 @@ export default function Home() {
   const [hoveredEvent, setHoveredEvent] = useState<any>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
+  const [seenRevision, setSeenRevision] = useState(0);
+  const [animStopped, setAnimStopped] = useState(false);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const tryObserve = () => {
+      const section = document.getElementById("notifications-section");
+      if (!section) return null;
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            window.dispatchEvent(new CustomEvent("notices:viewed"));
+          }
+        },
+        { threshold: 0.2 }
+      );
+      observer.observe(section);
+      return observer;
+    };
+    let observer = tryObserve();
+    if (!observer) {
+      const id = requestAnimationFrame(() => {
+        observer = tryObserve();
+      });
+      return () => {
+        cancelAnimationFrame(id);
+        observer?.disconnect();
+      };
+    }
+    return () => observer?.disconnect();
+  }, [isMobile]);
 
 
   // Track desktop breakpoint
@@ -147,20 +178,27 @@ export default function Home() {
     queryKey: ['verse-of-day'],
     queryFn: async () => {
       const today = new Date();
+      const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      let seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+      seed = Math.imul(seed ^ 0x5DEECE66D, 0x12345) ^ 0xBF58476D;
+      const rand = () => {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+      rand();
+      rand();
+      rand();
 
       try {
         if (LOCAL_VERSES.length > 0) {
-          // Usar la fecha del día para seleccionar un versículo consistente
-          const dayOfYear = Math.floor(
-            (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
-            1000 / 60 / 60 / 24
-          );
-
-          const verseIndex = dayOfYear % LOCAL_VERSES.length;
+          const verseIndex = Math.floor(rand() * LOCAL_VERSES.length);
           const selectedVerse = LOCAL_VERSES[verseIndex];
 
           return {
-            id: `verse-local-${today.getTime()}`,
+            id: `verse-${dateKey}`,
             title: "Versículo del Día",
             content: `${selectedVerse.content} - ${selectedVerse.book} ${selectedVerse.chapter}:${selectedVerse.verse}`,
             is_active: true,
@@ -171,23 +209,17 @@ export default function Home() {
         console.error('Error processing local verses', err);
       }
 
-      // Fallback si algo falla
-      const dayOfYear = Math.floor(
-        (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
-        1000 / 60 / 60 / 24
-      );
-
-      const fallbackVerse = FALLBACK_VERSES[dayOfYear % FALLBACK_VERSES.length];
+      const fallbackVerse = FALLBACK_VERSES[Math.floor(rand() * FALLBACK_VERSES.length)];
 
       return {
-        id: `verse-fallback-${today.getTime()}`,
+        id: `verse-${dateKey}`,
         title: "Versículo del Día",
         content: fallbackVerse.content,
         is_active: true,
         created_at: today.toISOString()
       };
     },
-    staleTime: 24 * 60 * 60 * 1000, // 24 hours - verse doesn't change daily
+    staleTime: 24 * 60 * 60 * 1000,
   });
 
   // Log errors for debugging
@@ -202,6 +234,61 @@ export default function Home() {
   const notices = useMemo(() => {
     return verseOfTheDay ? [verseOfTheDay, ...noticesData] : noticesData;
   }, [verseOfTheDay, noticesData]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('_latest_notice_ids', JSON.stringify(notices.map((n) => n.id)));
+    } catch { /* */ }
+  }, [notices]);
+
+  const unseenIds = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('seen_notice_ids');
+      const seen: string[] = raw ? JSON.parse(raw) : [];
+      const seenSet = new Set(seen);
+      return new Set(notices.filter((n) => !seenSet.has(n.id)).map((n) => n.id));
+    } catch {
+      return new Set<string>();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notices, seenRevision]);
+
+  useEffect(() => {
+    const count = unseenIds.size;
+    localStorage.setItem('_unseen_count', String(count));
+    window.dispatchEvent(new CustomEvent('notices:unseenCount', { detail: count }));
+  }, [unseenIds]);
+
+  useEffect(() => {
+    const markSeen = () => {
+      if (notices.length === 0) return;
+      try {
+        const raw = localStorage.getItem('seen_notice_ids');
+        const seen: string[] = raw ? JSON.parse(raw) : [];
+        const seenSet = new Set(seen);
+        let changed = false;
+        for (const n of notices) {
+          if (!seenSet.has(n.id)) {
+            seenSet.add(n.id);
+            changed = true;
+          }
+        }
+        if (changed) {
+          localStorage.setItem('seen_notice_ids', JSON.stringify([...seenSet].slice(-100)));
+          setSeenRevision((r) => r + 1);
+          setAnimStopped(false);
+          const timer = setTimeout(() => setAnimStopped(true), 6500);
+          return () => clearTimeout(timer);
+        }
+      } catch { /* ignore */ }
+    };
+    const handler = () => {
+      const cleanup = markSeen();
+      return cleanup;
+    };
+    window.addEventListener("notices:viewed", handler);
+    return () => window.removeEventListener("notices:viewed", handler);
+  }, [notices]);
 
   // ── Toggle comité ──────────────────────────────────────────────────
   const toggleComite = (id: string) => {
@@ -347,30 +434,27 @@ export default function Home() {
     // Vista de LISTA (Detalle completo)
     if (eventInfo.view.type.includes('list')) {
       return (
-        <div className={cn("flex flex-col gap-1 py-1 w-full", eventClasses)}>
-          {/* Título del evento */}
+        <div className={cn("flex flex-col gap-1 py-1 w-full min-w-0", eventClasses)}>
           <span className="font-bold text-[#1d1d1f] text-sm truncate">{eventInfo.event.title}</span>
 
-          {/* Comité y hora en la misma línea */}
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
-              className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white max-w-24 truncate"
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white truncate max-w-[80px]"
               style={{ backgroundColor: eventInfo.event.backgroundColor }}
             >
               {eventInfo.event.extendedProps.committeeName || 'General'}
             </span>
             <div className="flex items-center gap-1 text-xs text-[#86868b] shrink-0">
               <Clock size={12} className="text-logo-primary" />
-              <span className="truncate">
+              <span className="whitespace-nowrap">
                 {formatTimeUTC(eventInfo.event.extendedProps.startTime)} - {formatTimeUTC(eventInfo.event.extendedProps.endTime)}
               </span>
             </div>
           </div>
 
-          {/* Motto si existe */}
           {eventInfo.event.extendedProps.motto && (
-            <div className="flex items-center gap-1 italic underline decoration-gray-200 decoration-1 text-xs text-[#86868b]">
-              <Tag size={12} className="text-gray-400" />
+            <div className="flex items-center gap-1 italic underline decoration-gray-200 decoration-1 text-xs text-[#86868b] min-w-0">
+              <Tag size={12} className="text-gray-400 shrink-0" />
               <span className="truncate">"{eventInfo.event.extendedProps.motto}"</span>
             </div>
           )}
@@ -479,15 +563,26 @@ export default function Home() {
       </h3>
       <div className="space-y-3 flex-1">
         {notices.length > 0 ? (
-          notices.map((notice) => (
-            <div key={notice.id} className="p-4 rounded-2xl bg-[#f5f5f7] border border-gray-100">
-              <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
-              {notice.content && (
-                <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
-              )}
-              <p className="text-xs text-[#86868b] mt-2">{formatDateUTC(notice.created_at)}</p>
-            </div>
-          ))
+          notices.map((notice) => {
+            const isNew = unseenIds.has(notice.id);
+            return (
+              <div key={notice.id} className={cn(
+                "p-4 rounded-2xl border",
+                isNew && !animStopped ? "notice-new" : isNew && animStopped ? "notice-new-stopped" : "bg-[#f5f5f7] border-gray-100"
+              )}>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
+                  {isNew && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white shrink-0">NUEVO</span>
+                  )}
+                </div>
+                {notice.content && (
+                  <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
+                )}
+                <p className="text-xs text-[#86868b] mt-2">{formatDateUTC(notice.created_at)}</p>
+              </div>
+            );
+          })
         ) : (
           <div className="text-center py-8">
             <p className="text-sm text-[#86868b]">No hay avisos activos</p>
@@ -659,19 +754,30 @@ export default function Home() {
           </h3>
           <div className="space-y-2.5">
             {notices.length > 0 ? (
-              notices.map((notice) => (
-                <div key={notice.id} className="p-3.5 rounded-2xl bg-white border border-gray-100 shadow-sm">
-                  <div className="flex flex-col">
-                    <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
-                    {notice.content && (
-                      <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">{notice.content}</p>
-                    )}
-                    <p className="text-xs text-[#86868b] mt-1">
-                      {formatDateUTC(notice.created_at)}
-                    </p>
+              notices.map((notice) => {
+                const isNew = unseenIds.has(notice.id);
+                return (
+                  <div key={notice.id} className={cn(
+                    "p-3.5 rounded-2xl bg-white border shadow-sm",
+                    isNew && !animStopped ? "notice-new" : isNew && animStopped ? "notice-new-stopped" : "border-gray-100"
+                  )}>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-[#1d1d1f] text-sm">{notice.title}</h4>
+                        {isNew && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white shrink-0">NUEVO</span>
+                        )}
+                      </div>
+                      {notice.content && (
+                        <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">{notice.content}</p>
+                      )}
+                      <p className="text-xs text-[#86868b] mt-1">
+                        {formatDateUTC(notice.created_at)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-8">
                 <p className="text-sm text-[#86868b]">No hay avisos activos</p>

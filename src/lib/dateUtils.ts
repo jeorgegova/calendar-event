@@ -11,14 +11,17 @@ export const formatDateUTC = (date: string | Date | null | undefined, options: I
   if (!date) return '';
   const d = typeof date === 'string' ? new Date(date) : date;
   
-  // Default values if not provided
   const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     ...options,
-    timeZone: 'UTC' // This is the crucial part
+    timeZone: 'UTC'
   };
+
+  if (options.hour || options.minute) {
+    defaultOptions.hour12 = true;
+  }
   
   return d.toLocaleDateString('es-ES', defaultOptions);
 };
@@ -33,6 +36,7 @@ export const formatTimeUTC = (date: string | Date | null | undefined, options: I
   const defaultOptions: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
     ...options,
     timeZone: 'UTC'
   };

@@ -31,6 +31,8 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     setSuccessMsg(null);
 
     let accountBlocked = false;
+    let isSuccess = false;
+
     // Listen for custom inactive account event (dispatched by AuthContext)
     const inactiveHandler = (e: Event) => {
       accountBlocked = true;
@@ -48,11 +50,14 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         });
         if (error) throw error;
         setSuccessMsg("Si el correo existe, recibirás un link para reiniciar tu contraseña.");
+        isSuccess = true;
       } else {
         // Login normal
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         
+        isSuccess = true;
+
         // Wait a small bit for AuthContext to potentially block the account
         setTimeout(() => {
           window.removeEventListener('auth:inactive_account', inactiveHandler);
@@ -60,15 +65,17 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
           if (!accountBlocked) {
             onClose();
           }
-        }, 600); // Increased slightly for safer timing
-        return;
+        }, 600);
       }
     } catch (err: any) {
       setError(translateError(err));
-      window.removeEventListener('auth:inactive_account', inactiveHandler);
     } finally {
-      if (isResetMode) setLoading(false);
-      // For login mode, we don't setLoading(false) here because we're waiting for the timeout
+      // Si hubo un error o es modo reseteo, desactivamos el cargando y removemos el listener
+      // Para login exitoso, el setTimeout se encarga de la limpieza
+      if (isResetMode || !isSuccess) {
+        window.removeEventListener('auth:inactive_account', inactiveHandler);
+        setLoading(false);
+      }
     }
   };
 

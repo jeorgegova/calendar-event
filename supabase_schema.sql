@@ -84,6 +84,18 @@ CREATE TABLE audit_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 9. Versículos diarios programados
+CREATE TABLE daily_verses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  display_date DATE NOT NULL,
+  book TEXT NOT NULL,
+  chapter INTEGER NOT NULL,
+  verse_start INTEGER NOT NULL,
+  verse_end INTEGER NOT NULL,
+  created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ==========================
 -- ROW LEVEL SECURITY (RLS)
 -- ==========================
@@ -95,6 +107,7 @@ ALTER TABLE request_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_verses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- --------------------------
@@ -121,12 +134,16 @@ CREATE POLICY "Anyone can read active committees" ON committees FOR SELECT USING
 CREATE POLICY "Anyone can read event types" ON event_types FOR SELECT USING (true);
 CREATE POLICY "Anyone can read request types" ON request_types FOR SELECT USING (true);
 CREATE POLICY "Anyone can read active notices" ON notices FOR SELECT USING (is_active = true);
+CREATE POLICY "Anyone can read daily verses" ON daily_verses FOR SELECT USING (true);
 
 -- Operadores: Lectura completa (incluso inactivos) y Escritura (excepto auth_types, request_types en config).
 CREATE POLICY "Operadores can write committees" ON committees FOR ALL TO authenticated 
 USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'operador' OR role = 'admin') AND (role = 'admin' OR active_until IS NULL OR active_until > now())));
 
 CREATE POLICY "Operadores can write notices" ON notices FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'operador' OR role = 'admin') AND (role = 'admin' OR active_until IS NULL OR active_until > now())));
+
+CREATE POLICY "Operadores can write daily verses" ON daily_verses FOR ALL TO authenticated 
 USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND (role = 'operador' OR role = 'admin') AND (role = 'admin' OR active_until IS NULL OR active_until > now())));
 
 -- --------------------------
@@ -216,6 +233,10 @@ FOR EACH ROW EXECUTE FUNCTION handle_audit_log();
 
 CREATE TRIGGER audit_notices_trigger
 AFTER INSERT OR UPDATE OR DELETE ON notices
+FOR EACH ROW EXECUTE FUNCTION handle_audit_log();
+
+CREATE TRIGGER audit_daily_verses_trigger
+AFTER INSERT OR UPDATE OR DELETE ON daily_verses
 FOR EACH ROW EXECUTE FUNCTION handle_audit_log();
 
 -- ==========================

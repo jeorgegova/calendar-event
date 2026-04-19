@@ -6,20 +6,16 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import listPlugin from "@fullcalendar/list";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { Bell, Clock, Tag } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Bell, Clock, Tag, Filter, ChevronDown, Check, Trash2 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
-import { formatDateUTC, formatTimeUTC } from "../lib/dateUtils";
+import { formatDateUTC, formatTimeUTC, toUTCInputFormat, fromInputToUTC } from "../lib/dateUtils";
 import { createPortal } from "react-dom";
+import { Modal } from "../components/ui/Modal";
+import { Button } from "../components/ui/Button";
+import { useConfirm } from "../context/ConfirmContext";
 import bibleData from "../assets/RVR1960-Spanish.json";
-
-// ── Interfaces ─────────────────────────────────────────────────────────
-interface Comite {
-  id: string;
-  name: string;
-  color_hex: string;
-  is_active: boolean;
-}
 
 // ── Eventos cargados desde Supabase ──────────────────
 
@@ -68,14 +64,28 @@ const LOCAL_VERSES = processLocalVerses();
 // ── Componente ──────────────────────────────────────────────────────────
 export default function Home() {
   const isMobile = useIsMobile();
+  const { hasPermission } = useAuth();
+  const confirm = useConfirm();
+  const canEditEvents = hasPermission('operador');
   const calendarRef = useRef<FullCalendar>(null);
+  const committeeDropdownRef = useRef<HTMLDivElement>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [selectedComites, setSelectedComites] = useState<string[]>([]); // vacío = todos
+  const [selectedComites, setSelectedComites] = useState<string[]>([]);
   const [hoveredEvent, setHoveredEvent] = useState<any>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [seenRevision, setSeenRevision] = useState(0);
   const [animStopped, setAnimStopped] = useState(false);
+  const [isCommitteeDropdownOpen, setIsCommitteeDropdownOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    id: "",
+    title: "",
+    committee_id: "",
+    start_time: "",
+    end_time: "",
+    motto: "",
+  });
 
   useEffect(() => {
     if (!isMobile) return;
@@ -114,6 +124,17 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    if (!isCommitteeDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (committeeDropdownRef.current && !committeeDropdownRef.current.contains(e.target as Node)) {
+        setIsCommitteeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isCommitteeDropdownOpen]);
+
 
 
   // Fetch committees with React Query
@@ -128,7 +149,17 @@ export default function Home() {
       if (error) throw error;
       return data || [];
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { } = useQuery({
+    queryKey: ['event-types'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('event_types').select('*').order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 10 * 60 * 1000,
   });
 
   // Fetch all events with React Query for immediate display
@@ -173,12 +204,51 @@ export default function Home() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch verse of the day from local file
+  // Fetch verse of the day: programmed verses first, fallback to random
   const { data: verseOfTheDay, error: verseError } = useQuery({
     queryKey: ['verse-of-day'],
     queryFn: async () => {
       const today = new Date();
       const dateKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+      try {
+        const { data: programmed, error: dbError } = await supabase
+          .from('daily_verses')
+          .select('*')
+          .eq('display_date', dateKey)
+          .order('verse_start');
+
+        if (!dbError && programmed && programmed.length > 0) {
+          const bibleDataTyped = bibleData as any;
+          const parts = programmed.map((v) => {
+            const ref = v.verse_start === v.verse_end
+              ? `${v.book} ${v.chapter}:${v.verse_start}`
+              : `${v.book} ${v.chapter}:${v.verse_start}-${v.verse_end}`;
+            let text = "";
+            const ch = bibleDataTyped[v.book]?.[String(v.chapter)];
+            if (ch) {
+              for (let i = v.verse_start; i <= v.verse_end; i++) {
+                if (ch[String(i)]) text += (text ? " " : "") + `${i}. ` + ch[String(i)];
+              }
+            }
+            return `${text} — ${ref}`;
+          });
+
+          const content = programmed.length > 1
+            ? parts.map((p, i) => `${i + 1}. ${p}`).join("\n\n")
+            : parts.join("\n\n");
+
+          return {
+            id: `verse-${dateKey}`,
+            title: "Versículo del Día",
+            content,
+            is_active: true,
+            created_at: today.toISOString()
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching programmed verses:', err);
+      }
 
       let seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
       seed = Math.imul(seed ^ 0x5DEECE66D, 0x12345) ^ 0xBF58476D;
@@ -379,32 +449,56 @@ export default function Home() {
     window.dispatchEvent(new CustomEvent("calendar:viewChanged", { detail: info.view.type }));
   };
 
-  // ── Chip de comité reutilizable ────────────────────────────────────
-  const ComiteChip = ({ comite, size = "md" }: { comite: Comite; size?: "sm" | "md" }) => {
-    const isActive = selectedComites.includes(comite.id);
-    const sizeClasses = size === "sm"
-      ? "px-2.5 py-1 text-[10px]"
-      : "px-3 py-1.5 text-sm";
+  const renderCommitteeListItems = (options?: { compact?: boolean; onTodosClick?: () => void }) => {
+    const compact = options?.compact ?? false;
+    const onTodosClick = options?.onTodosClick;
+    const itemPad = compact ? "px-3 py-2" : "px-3 py-2.5";
 
     return (
-      <button
-        onClick={() => toggleComite(comite.id)}
-        className={cn(
-          "rounded-full font-bold cursor-pointer transition-all active:scale-95 border",
-          sizeClasses,
-          isActive
-            ? "shadow-sm ring-2 ring-offset-1"
-            : "hover:shadow-sm"
-        )}
-        style={{
-          backgroundColor: isActive ? comite.color_hex : `${comite.color_hex}1a`, // 1a = ~10% opacity
-          color: isActive ? 'white' : comite.color_hex,
-          borderColor: isActive ? comite.color_hex : `${comite.color_hex}40`, // 40 = ~25% opacity
-          ...({ '--tw-ring-color': comite.color_hex } as React.CSSProperties)
-        }}
-      >
-        {comite.name}
-      </button>
+      <div className={cn("space-y-1", compact && "py-1")}>
+        <button
+          onClick={() => { clearFilter(); onTodosClick?.(); }}
+          className={cn(
+            "flex items-center gap-3 w-full rounded-xl transition-all cursor-pointer",
+            itemPad,
+            isAllSelected
+              ? "bg-logo-primary/5"
+              : "bg-gray-100 hover:bg-gray-200"
+          )}
+        >
+          <div className={cn(
+            "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+            isAllSelected ? "bg-logo-primary border-logo-primary" : "border-gray-300"
+          )}>
+            {isAllSelected && <Check size={12} className="text-white" strokeWidth={3} />}
+          </div>
+          <span className={cn("font-medium text-sm", isAllSelected ? "text-logo-primary" : "text-[#1d1d1f]")}>Todos</span>
+        </button>
+
+        {committees.map(c => {
+          const isActive = selectedComites.includes(c.id);
+          return (
+            <button
+              key={c.id}
+              onClick={() => toggleComite(c.id)}
+              className={cn("flex items-center gap-3 w-full rounded-xl transition-all cursor-pointer", itemPad, isActive ? "" : "hover:bg-gray-50")}
+              style={isActive ? { backgroundColor: `${c.color_hex}30` } : undefined}
+            >
+              <div
+                className={cn(
+                  "w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all",
+                  !isActive && "border-gray-300 bg-white"
+                )}
+                style={isActive ? { backgroundColor: c.color_hex, borderColor: c.color_hex } : undefined}
+              >
+                {isActive && <Check size={12} className="text-white" strokeWidth={3} />}
+              </div>
+              <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c.color_hex }} />
+              <span className={cn("font-medium text-sm truncate", isActive ? "text-[#1d1d1f]" : "text-[#1d1d1f]/70")}>{c.name}</span>
+            </button>
+          );
+        })}
+      </div>
     );
   };
 
@@ -505,7 +599,18 @@ export default function Home() {
   };
 
   const handleEventClick = (info: any) => {
-    if (isMobile) {
+    if (canEditEvents) {
+      const { event } = info;
+      setEditFormData({
+        id: event.id,
+        title: event.title,
+        committee_id: event.extendedProps.committee_id || "",
+        start_time: toUTCInputFormat(event.extendedProps.startTime),
+        end_time: toUTCInputFormat(event.extendedProps.endTime),
+        motto: event.extendedProps.motto || "",
+      });
+      setIsEditModalOpen(true);
+    } else if (isMobile) {
       const { event, jsEvent } = info;
       if (hoveredEvent?.id === event.id) {
         setHoveredEvent(null);
@@ -516,41 +621,131 @@ export default function Home() {
     }
   };
 
-  const TodosChip = ({ size = "md" }: { size?: "sm" | "md" }) => {
-    const sizeClasses = size === "sm"
-      ? "px-2.5 py-1 text-[10px]"
-      : "px-3 py-1.5 text-sm";
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({
+          title: editFormData.title,
+          committee_id: editFormData.committee_id || null,
+          start_time: fromInputToUTC(editFormData.start_time),
+          end_time: fromInputToUTC(editFormData.end_time),
+          motto: editFormData.motto || null,
+        })
+        .eq('id', editFormData.id);
+      if (error) throw error;
+      setIsEditModalOpen(false);
+      eventsQuery.refetch();
+    } catch (error) {
+      console.error('Error updating event:', error);
+    }
+  };
 
-    return (
-      <button
-        onClick={clearFilter}
-        className={cn(
-          "rounded-full font-semibold cursor-pointer transition-all active:scale-95",
-          sizeClasses,
-          isAllSelected
-            ? "bg-logo-primary/20 text-logo-primary ring-2 ring-logo-primary ring-offset-1"
-            : "bg-logo-primary/10 text-logo-primary"
-        )}
-      >
-        Todos
-      </button>
-    );
+  const handleDeleteFromCalendar = async () => {
+    const confirmed = await confirm({
+      title: '¿Eliminar Evento?',
+      message: '¿Estás seguro de que quieres eliminar este evento? Esta acción no se puede deshacer.',
+      type: 'danger',
+      confirmLabel: 'Eliminar',
+      cancelLabel: 'Cancelar',
+    });
+    if (!confirmed) return;
+    try {
+      const { error } = await supabase.from('events').delete().eq('id', editFormData.id);
+      if (error) throw error;
+      setIsEditModalOpen(false);
+      eventsQuery.refetch();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
+  };
+
+  const handleEventDrop = async (info: any) => {
+    const { event, revert } = info;
+    const oldStart = new Date(event.extendedProps.startTime);
+    const oldEnd = new Date(event.extendedProps.endTime);
+    const duration = oldEnd.getTime() - oldStart.getTime();
+
+    const newStart = event.start;
+    const newEnd = new Date(newStart.getTime() + duration);
+
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({
+          start_time: newStart.toISOString(),
+          end_time: newEnd.toISOString(),
+        })
+        .eq('id', event.id);
+
+      if (error) {
+        revert();
+        console.error('Error moving event:', error);
+      } else {
+        eventsQuery.refetch();
+      }
+    } catch {
+      revert();
+    }
+  };
+
+  const handleEventResize = async (info: any) => {
+    const { event, revert } = info;
+
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ end_time: event.end.toISOString() })
+        .eq('id', event.id);
+
+      if (error) {
+        revert();
+        console.error('Error resizing event:', error);
+      } else {
+        eventsQuery.refetch();
+      }
+    } catch {
+      revert();
+    }
   };
 
   // ── Render Helpers ──────────────────────────────────────────────────
-  const renderComites = () => (
-    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 shrink-0">
-      <h3 className="font-semibold text-[#1d1d1f] mb-4">Comités</h3>
-      <div className="flex flex-wrap gap-2">
-        <TodosChip />
-        {committees.map((c) => (
-          <ComiteChip key={c.id} comite={c} />
-        ))}
-      </div>
-      {!isAllSelected && (
-        <p className="text-xs text-[#86868b] mt-3">
-          Mostrando: {selectedComites.map((id) => committees.find((c) => c.id === id)?.name).join(", ")}
-        </p>
+  const getDropdownLabel = () => {
+    if (isAllSelected) return "Todos los comités";
+    if (selectedComites.length === 1) return committees.find(c => c.id === selectedComites[0])?.name ?? "1 comité";
+    return `${selectedComites.length} comités seleccionados`;
+  };
+
+  const renderCommitteeDropdown = (triggerClass?: string) => (
+    <div ref={committeeDropdownRef} className="relative">
+      <button
+        onClick={() => setIsCommitteeDropdownOpen(prev => !prev)}
+        className={cn(
+          "flex items-center gap-2 bg-white border rounded-xl transition-all cursor-pointer",
+          isCommitteeDropdownOpen ? "border-logo-primary shadow-sm ring-2 ring-logo-primary/20" : "border-gray-200 hover:border-gray-300",
+          triggerClass ?? (isMobile ? "px-3 py-2" : "px-4 py-2.5")
+        )}
+      >
+        <Filter size={15} className="text-logo-primary shrink-0" />
+        <span className={cn("font-medium text-[#1d1d1f] truncate", isMobile ? "text-xs max-w-[160px]" : "text-sm max-w-[200px]")}>
+          {getDropdownLabel()}
+        </span>
+        <ChevronDown size={15} className={cn("text-[#86868b] shrink-0 transition-transform duration-200", isCommitteeDropdownOpen && "rotate-180")} />
+        {!isAllSelected && (
+          <span className="ml-0.5 min-w-[18px] h-[18px] flex items-center justify-center bg-logo-primary text-white text-[10px] font-bold rounded-full px-1">
+            {selectedComites.length}
+          </span>
+        )}
+      </button>
+
+      {isCommitteeDropdownOpen && (
+        <div className={cn(
+          "absolute top-full mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 z-50 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150",
+          isMobile ? "left-0 right-0 max-h-60" : "left-0 w-80 max-h-72"
+        )}>
+          {renderCommitteeListItems({ compact: true, onTodosClick: () => setIsCommitteeDropdownOpen(false) })}
+        </div>
       )}
     </div>
   );
@@ -577,7 +772,7 @@ export default function Home() {
                   )}
                 </div>
                 {notice.content && (
-                  <p className="text-xs text-[#86868b] mt-1 leading-relaxed">{notice.content}</p>
+                  <p className="text-xs text-[#86868b] mt-1 leading-relaxed whitespace-pre-wrap">{notice.content}</p>
                 )}
                 <p className="text-xs text-[#86868b] mt-2">{formatDateUTC(notice.created_at)}</p>
               </div>
@@ -599,7 +794,7 @@ export default function Home() {
       {/* Comités (Modo Tablet) — Arriba del calendario */}
       {!isMobile && (
         <div className="w-full lg:hidden order-1">
-          {renderComites()}
+          {renderCommitteeDropdown("px-4 py-2.5")}
         </div>
       )}
 
@@ -613,11 +808,10 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Filtros inline en mobile */}
+        {/* Filtro de comités en mobile */}
         {isMobile && (
-          <div className="flex gap-1.5 flex-wrap px-1 py-1 mb-3 overflow-x-auto scrollbar-hide items-center">
-            <TodosChip size="sm" />
-            {committees.map(c => <ComiteChip key={c.id} comite={c} size="sm" />)}
+          <div className="px-1 mb-3">
+            {renderCommitteeDropdown("px-3 py-2 w-full justify-between")}
           </div>
         )}
 
@@ -638,6 +832,9 @@ export default function Home() {
             now={getCalendarNow()}
             headerToolbar={isMobile ? mobileToolbar : desktopToolbar}
             events={filteredEvents}
+            editable={canEditEvents && !isMobile}
+            eventDrop={handleEventDrop}
+            eventResize={handleEventResize}
             height={isDesktop ? "100%" : "auto"}
             contentHeight={isDesktop ? undefined : "auto"}
             dayMaxEvents={isMobile ? 2 : true}
@@ -740,7 +937,27 @@ export default function Home() {
       {/* Panel Lateral Derecho (Modo Desktop) */}
       {!isMobile && (
         <div className="hidden lg:flex w-80 flex-col gap-6 order-2 shrink-0">
-          {renderComites()}
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 shrink-0">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-[#1d1d1f]">Filtrar por Comités</h3>
+              {!isAllSelected && (
+                <button
+                  onClick={clearFilter}
+                  className="text-xs font-medium text-logo-primary hover:text-logo-primary/80 transition-colors cursor-pointer"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {renderCommitteeListItems()}
+            </div>
+            {!isAllSelected && (
+              <p className="text-xs text-[#86868b] mt-3 pt-3 border-t border-gray-100">
+                Filtrando: {selectedComites.map(id => committees.find(c => c.id === id)?.name).join(", ")}
+              </p>
+            )}
+          </div>
           {renderAvisos()}
         </div>
       )}
@@ -769,7 +986,7 @@ export default function Home() {
                         )}
                       </div>
                       {notice.content && (
-                        <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed">{notice.content}</p>
+                        <p className="text-xs text-[#86868b] mt-0.5 leading-relaxed whitespace-pre-wrap">{notice.content}</p>
                       )}
                       <p className="text-xs text-[#86868b] mt-1">
                         {formatDateUTC(notice.created_at)}
@@ -786,6 +1003,92 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Modal Editar Evento */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Editar Evento"
+        size="md"
+      >
+        <form onSubmit={handleEditSubmit} className="space-y-5">
+          <div>
+            <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">Título</label>
+            <input
+              type="text"
+              required
+              value={editFormData.title}
+              onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+              className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">Comité</label>
+            <select
+              value={editFormData.committee_id}
+              onChange={(e) => setEditFormData({ ...editFormData, committee_id: e.target.value })}
+              className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
+            >
+              <option value="">Sin comité</option>
+              {committees.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">Inicio</label>
+              <input
+                type="datetime-local"
+                required
+                value={editFormData.start_time}
+                onChange={(e) => setEditFormData({ ...editFormData, start_time: e.target.value })}
+                className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">Fin</label>
+              <input
+                type="datetime-local"
+                required
+                value={editFormData.end_time}
+                onChange={(e) => setEditFormData({ ...editFormData, end_time: e.target.value })}
+                className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm transition-all text-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#86868b] mb-2 uppercase tracking-tight pl-1">Lema (opcional)</label>
+            <input
+              type="text"
+              value={editFormData.motto}
+              onChange={(e) => setEditFormData({ ...editFormData, motto: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary transition-all text-sm"
+              placeholder="Ej: Unidos en Fe"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDeleteFromCalendar}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <Trash2 size={16} />
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)} className="flex-1">
+              Cancelar
+            </Button>
+            <Button type="submit" variant="success" className="flex-1">
+              Guardar
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
     </div>
   );

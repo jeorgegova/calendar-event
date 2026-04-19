@@ -108,7 +108,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               onConfirm();
               onClose();
             }}
-            variant={type === 'danger' ? 'danger' : 'success'}
+            variant={'danger' as const}
             className="w-full h-12 text-base shadow-lg"
           >
             {confirmLabel}

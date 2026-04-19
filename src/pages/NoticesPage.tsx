@@ -10,7 +10,7 @@ import { cn } from "../lib/utils";
 import { getSpanishValidationProps } from "../lib/formUtils";
 import bibleData from "../assets/RVR1960-Spanish.json";
 
-const BIBLE = bibleData as Record<string, Record<string, Record<string, string>>>;
+const BIBLE = bibleData as unknown as Record<string, Record<string, Record<string, string>>>;
 const BOOK_NAMES = Object.keys(BIBLE).sort((a, b) => a.localeCompare(b));
 
 interface Notice {

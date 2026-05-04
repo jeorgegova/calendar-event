@@ -72,19 +72,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // App assets → Stale-while-revalidate
+  // App assets → Network First (Ensures latest version if online, fallback to cache if offline)
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const fetchPromise = fetch(request).then((response) => {
+    fetch(request)
+      .then((response) => {
         // Only cache successful responses
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         }
         return response;
-      }).catch(() => cached);
-
-      return cached || fetchPromise;
-    })
+      })
+      .catch(() => {
+        // If network fails, try to serve from cache
+        return caches.match(request);
+      })
   );
 });

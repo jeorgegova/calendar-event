@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye, EyeOff, UserPlus, Mail, Clock, User, Key, MailCheck, MailQuestion, Shield } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, EyeOff, UserPlus, Mail, Clock, User, Key, MailCheck, MailQuestion, Shield, Search, X } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -28,6 +28,7 @@ export default function UsersPage() {
   });
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const isAdmin = hasPermission('admin');
 
@@ -228,7 +229,7 @@ export default function UsersPage() {
   const handleToggleActive = async (user: UserProfile) => {
     try {
       const newStatus = !user.is_active;
-      
+
       // Optimistic update
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: newStatus } : u));
 
@@ -312,6 +313,14 @@ export default function UsersPage() {
     return <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">{daysLeft} días</span>;
   };
 
+  const filteredUsers = users.filter(user => {
+    const search = searchTerm.toLowerCase();
+    return (
+      user.full_name?.toLowerCase().includes(search) ||
+      user.email.toLowerCase().includes(search)
+    );
+  });
+
   if (!isAdmin) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
@@ -337,18 +346,39 @@ export default function UsersPage() {
   return (
     <div className="flex-1 p-4 md:p-8 bg-[#fbfbfd]">
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div>
             <h1 className="text-2xl font-bold text-[#1d1d1f]">Gestión de Usuarios</h1>
             <p className="text-sm text-[#86868b] mt-1">Administra los usuarios operadores del sistema</p>
           </div>
-          <Button onClick={openCreateModal} className="flex items-center gap-2 shadow-lg shadow-logo-primary/10">
-            <Plus size={18} />
-            Nuevo Operador
-          </Button>
+          
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 md:w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre o correo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-100 rounded-xl text-sm font-medium shadow-sm focus:ring-2 focus:ring-logo-primary/20 transition-all placeholder:text-gray-400"
+              />
+              {searchTerm && (
+                <button 
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <Button onClick={openCreateModal} className="flex items-center gap-2 shadow-lg shadow-logo-primary/10 shrink-0">
+              <Plus size={18} />
+              Nuevo Operador
+            </Button>
+          </div>
         </div>
         <div className="space-y-6">
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <div
               key={user.id}
               className="group p-5 md:p-8 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm hover:shadow-xl transition-all duration-500"
@@ -381,8 +411,8 @@ export default function UsersPage() {
                   {user.role !== 'admin' && (
                     <div className="flex items-center">
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           className="sr-only peer"
                           checked={user.is_active}
                           onChange={() => handleToggleActive(user)}
@@ -427,16 +457,28 @@ export default function UsersPage() {
           ))}
         </div>
 
-        {users.length === 0 && (
+        {filteredUsers.length === 0 && (
           <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200 mt-6 px-10">
             <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <UserPlus size={32} className="text-gray-300" />
+              <Search size={32} className="text-gray-300" />
             </div>
-            <h3 className="text-xl font-bold text-[#1d1d1f] mb-2">No se encontraron usuarios</h3>
-            <p className="text-gray-400 max-w-xs mx-auto mb-8 font-medium">Comienza agregando al primer operador para gestionar el calendario.</p>
-            <Button onClick={openCreateModal} className="px-10 py-4 rounded-2xl shadow-lg">
-              Crear primer usuario
-            </Button>
+            <h3 className="text-xl font-bold text-[#1d1d1f] mb-2">
+              {searchTerm ? "No se encontraron usuarios" : "No hay usuarios registrados"}
+            </h3>
+            <p className="text-gray-400 max-w-xs mx-auto mb-8 font-medium">
+              {searchTerm 
+                ? "Prueba con otros términos de búsqueda o limpia el filtro" 
+                : "Comienza agregando al primer operador para gestionar el calendario."}
+            </p>
+            {searchTerm ? (
+              <Button variant="outline" onClick={() => setSearchTerm("")} className="px-10 py-4 rounded-2xl">
+                Limpiar Búsqueda
+              </Button>
+            ) : (
+              <Button onClick={openCreateModal} className="px-10 py-4 rounded-2xl shadow-lg">
+                Crear primer usuario
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -516,7 +558,7 @@ export default function UsersPage() {
               <Clock size={16} className="text-logo-primary" />
               Acceso Activo hasta
             </label>
-            
+
             <div className="relative">
               <input
                 type="date"
@@ -576,8 +618,8 @@ export default function UsersPage() {
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="is_active"
                   className="sr-only peer"
                   checked={formData.is_active}
@@ -602,8 +644,8 @@ export default function UsersPage() {
                 </div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="is_admin"
                   className="sr-only peer"
                   checked={formData.role === 'admin'}
@@ -644,7 +686,7 @@ export default function UsersPage() {
                 <div>
                   <p className="text-sm text-blue-800 font-medium">Nota importante</p>
                   <p className="text-xs text-blue-700 mt-1">
-                    El usuario recibirá un correo de confirmación. Se le obligará a cambiar la contraseña ingresada aquí en su primer inicio de sesión por motivos de seguridad.
+                    El usuario recibirá un correo electrónico de confirmación. Se le notificará que debe cambiar la contraseña por seguridad.
                   </p>
                 </div>
               </div>

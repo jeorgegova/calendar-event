@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Search, Filter, Tag, X, ChevronRight } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -26,6 +26,7 @@ export default function CommitteesPage() {
     color_hex: "#FF5733",
     is_active: true,
   });
+  const [searchTerm, setSearchTerm] = useState("");
 
   const canEdit = hasPermission('operador');
 
@@ -124,6 +125,10 @@ export default function CommitteesPage() {
     setIsModalOpen(true);
   };
 
+  const filteredCommittees = committees.filter(committee => {
+    return committee.name.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
   if (loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
@@ -147,9 +152,43 @@ export default function CommitteesPage() {
             </Button>
           )}
         </div>
+        
+        {/* Compact Filter */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-6 shadow-sm flex gap-3 items-center">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar comité por nombre..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-logo-primary/20 transition-all placeholder:text-gray-400"
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {searchTerm && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSearchTerm("")}
+              className="h-9 px-3 rounded-xl border-dashed border-gray-300 text-xs font-bold"
+            >
+              <X size={14} className="mr-1" />
+              Limpiar
+            </Button>
+          )}
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {committees.map((committee) => (
+          {filteredCommittees.map((committee) => (
             <div
               key={committee.id}
               className={cn(
@@ -202,16 +241,31 @@ export default function CommitteesPage() {
           ))}
         </div>
 
-        {committees.length === 0 && (
+        {filteredCommittees.length === 0 && (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Eye size={24} className="text-gray-400" />
+              <Search size={24} className="text-gray-400" />
             </div>
-            <h3 className="text-lg font-semibold text-[#1d1d1f] mb-2">No hay comités</h3>
-            <p className="text-sm text-[#86868b]">Crea el primer comité para empezar</p>
-            {canEdit && (
+            <h3 className="text-lg font-semibold text-[#1d1d1f] mb-2">
+              {searchTerm ? "No se encontraron comités" : "No hay comités"}
+            </h3>
+            <p className="text-sm text-[#86868b]">
+              {searchTerm 
+                ? "Prueba con otros términos o limpia el filtro" 
+                : "Crea el primer comité para empezar"}
+            </p>
+            {canEdit && !searchTerm && (
               <Button onClick={openCreateModal} className="mt-4">
                 Crear Comité
+              </Button>
+            )}
+            {searchTerm && (
+              <Button 
+                variant="outline" 
+                onClick={() => { setSearchTerm(""); }} 
+                className="mt-4"
+              >
+                Limpiar Búsqueda
               </Button>
             )}
           </div>

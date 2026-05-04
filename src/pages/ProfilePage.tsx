@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { User, Mail, Lock, Shield, CheckCircle2, AlertCircle, LogOut } from "lucide-react";
+import { User, Mail, Lock, Shield, CheckCircle2, AlertCircle, LogOut, Eye, EyeOff } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -11,7 +11,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  
+
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || "",
   });
@@ -21,13 +21,16 @@ export default function ProfilePage() {
     confirmPassword: "",
   });
 
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
-    
+
     setLoading(true);
     setMessage(null);
-    
+
     try {
       const { error } = await supabase
         .from('profiles')
@@ -35,7 +38,7 @@ export default function ProfilePage() {
         .eq('id', profile.id);
 
       if (error) throw error;
-      
+
       await refreshProfile();
       setMessage({ type: 'success', text: "Perfil actualizado correctamente" });
     } catch (error) {
@@ -126,7 +129,7 @@ export default function ProfilePage() {
               <div>
                 <h3 className="font-bold text-orange-900">Acción requerida: Cambia tu contraseña</h3>
                 <p className="text-sm text-orange-800 mt-1">
-                  Estás usando una contraseña temporal asignada por el administrador. 
+                  Estás usando una contraseña temporal asignada por el administrador.
                   Por seguridad, debes cambiarla antes de continuar usando el sistema.
                 </p>
               </div>
@@ -180,7 +183,7 @@ export default function ProfilePage() {
           <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
             <div className="flex items-center gap-3 mb-6">
               <Lock className="text-logo-primary" size={20} />
-              <h2 className="text-lg font-bold text-logo-dark">Seguridad</h2>
+              <h2 className="text-lg font-bold text-logo-dark">Actualizar Contraseña</h2>
             </div>
 
             <form onSubmit={handleChangePassword} className="space-y-6">
@@ -189,14 +192,21 @@ export default function ProfilePage() {
                 <div className="relative">
                   <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="password"
+                    type={showNewPassword ? "text" : "password"}
                     required
                     {...getSpanishValidationProps("Por favor, ingresa la nueva contraseña")}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
+                    className="w-full pl-11 pr-12 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
 
@@ -205,21 +215,28 @@ export default function ProfilePage() {
                 <div className="relative">
                   <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     required
                     {...getSpanishValidationProps("Por favor, confirma la nueva contraseña")}
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
+                    className="w-full pl-11 pr-12 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all"
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                variant="success" 
-                disabled={loading} 
+              <Button
+                type="submit"
+                variant="success"
+                disabled={loading}
                 className="w-full shadow-[0_0_20px_rgba(34,197,94,0.2)]"
               >
                 {loading ? "Cambiando..." : "Actualizar Contraseña"}

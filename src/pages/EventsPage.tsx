@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag, Info, CheckCircle2, Repeat } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, Clock, Users, Tag, Info, CheckCircle2, Repeat, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -50,6 +50,8 @@ export default function EventsPage() {
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [formData, setFormData] = useState({
@@ -65,6 +67,12 @@ export default function EventsPage() {
     repeat_end_mode: "count" as "count" | "date",
     repeat_count: 4,
     repeat_end_date: "",
+  });
+
+  const [filters, setFilters] = useState({
+    month: new Date().toISOString().slice(0, 7), // "YYYY-MM"
+    search: "",
+    committee: ""
   });
 
   const canEdit = hasPermission('operador');
@@ -113,43 +121,22 @@ export default function EventsPage() {
   };
 
   useEffect(() => {
-    loadData();
-
-    // Timeout para evitar loading infinito (8 segundos)
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-    }, 8000);
-
-    return () => clearTimeout(timeoutId);
+    fetchMetadata();
   }, []);
 
-  const loadData = async () => {
+  useEffect(() => {
+    fetchEvents();
+  }, [filters.month, filters.committee]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchEvents();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  const fetchMetadata = async () => {
     try {
-      // Load events with related data
-      const { data: eventsData, error: eventsError } = await supabase
-        .from('events')
-        .select(`
-          *,
-          committees (
-            id,
-            name,
-            color_hex
-          ),
-          event_types (
-            id,
-            name
-          ),
-          event_requests (
-            request_types (
-              id,
-              name
-            )
-          )
-        `)
-        .order('start_time', { ascending: false });
-
-      if (eventsError) throw eventsError;
-
       // Load committees
       const { data: committeesData, error: committeesError } = await supabase
         .from('committees')
@@ -175,15 +162,72 @@ export default function EventsPage() {
 
       if (requestTypesError) throw requestTypesError;
 
-      setEvents(eventsData || []);
       setCommittees(committeesData || []);
       setEventTypes(eventTypesData || []);
       setRequestTypes(requestTypesData || []);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading metadata:', error);
+    }
+  };
+
+  const fetchEvents = async () => {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('events')
+        .select(`
+          *,
+          committees (
+            id,
+            name,
+            color_hex
+          ),
+          event_types (
+            id,
+            name
+          ),
+          event_requests (
+            request_types (
+              id,
+              name
+            )
+          )
+        `)
+        .order('start_time', { ascending: true });
+
+      // Month Filter
+      if (filters.month) {
+        const [year, month] = filters.month.split('-').map(Number);
+        const startOfMonth = `${filters.month}-01T00:00:00Z`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endOfMonth = `${filters.month}-${lastDay}T23:59:59Z`;
+        query = query.gte('start_time', startOfMonth).lte('start_time', endOfMonth);
+      }
+
+      // Search Filter
+      if (filters.search) {
+        query = query.ilike('title', `%${filters.search}%`);
+      }
+
+      // Committee Filter
+      if (filters.committee) {
+        query = query.eq('committee_id', filters.committee);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setEvents(data || []);
+    } catch (error) {
+      console.error('Error loading events:', error);
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
+  };
+
+  const loadData = async () => {
+    // This maintains backward compatibility if needed, but we use fetchEvents directly now
+    await fetchEvents();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -308,7 +352,7 @@ export default function EventsPage() {
     });
 
     if (!confirmed) return;
-    
+
     setLoading(true); // Mostrar loading mientras se elimina
 
     try {
@@ -368,7 +412,7 @@ export default function EventsPage() {
     const d = newDate !== undefined ? newDate : currentDate;
     const t = newTime !== undefined ? newTime : currentTime;
     const newStart = `${d}T${t || "00:00"}`;
-    
+
     setFormData(prev => {
       let newEnd = prev.end_time;
       // Sincronización inteligente: Si el fin es vacío o anterior al nuevo inicio
@@ -397,14 +441,14 @@ export default function EventsPage() {
   const hours = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
   const minutes = Array.from({ length: 12 }, (_, i) => (i * 5).toString().padStart(2, '0'));
 
-  const TimePicker = ({ 
-    value, 
-    onChange, 
-    label 
-  }: { 
-    value: string, 
+  const TimePicker = ({
+    value,
+    onChange,
+    label
+  }: {
+    value: string,
     onChange: (newTime: string) => void,
-    label: string 
+    label: string
   }) => {
     const [h, m] = value.split(':');
     return (
@@ -431,7 +475,7 @@ export default function EventsPage() {
     );
   };
 
-  if (loading) {
+  if (isInitialLoad && loading) {
     return (
       <div className="flex-1 p-6 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin"></div>
@@ -455,11 +499,142 @@ export default function EventsPage() {
           )}
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((event) => (
+        {/* Filters Bar */}
+        <div className="bg-white border border-gray-100 rounded-[2rem] p-4 md:p-6 mb-6 md:mb-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-logo-primary/10 flex items-center justify-center">
+                <Filter size={18} className="text-logo-primary" />
+              </div>
+              <div>
+                <h2 className="text-base md:text-lg font-bold text-logo-dark tracking-tight">Filtros</h2>
+                <p className="hidden md:block text-[10px] text-[#86868b] font-medium uppercase tracking-wider">Búsqueda avanzada</p>
+              </div>
+              {loading && !isInitialLoad && (
+                <div className="w-4 h-4 border-2 border-logo-primary/30 border-t-logo-primary rounded-full animate-spin ml-2"></div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                variant="outline"
+                size="sm"
+                className="md:hidden h-9 px-3 rounded-xl border-gray-200 text-xs font-bold flex items-center gap-2"
+              >
+                <Tag size={14} />
+                {showMobileFilters ? 'Ocultar' : 'Más Filtros'}
+              </Button>
+              <Button
+                onClick={() => setFilters({
+                  month: new Date().toISOString().slice(0, 7),
+                  search: "",
+                  committee: ""
+                })}
+                variant="outline"
+                size="sm"
+                className="h-9 px-3 md:px-4 rounded-xl border-dashed border-gray-300 hover:border-logo-primary hover:text-logo-primary hover:bg-logo-primary/5 transition-all text-xs font-bold"
+              >
+                Limpiar
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {/* Navegación por Mes (Siempre visible) */}
+            <div className="space-y-2 order-first md:order-last">
+              <label className="block text-[11px] font-bold text-[#86868b] uppercase tracking-wider pl-1 flex items-center gap-2">
+                <Calendar size={12} className="text-logo-primary" />
+                Período / Mes
+              </label>
+              <div className="flex items-center gap-1.5 p-1 bg-gray-50 rounded-2xl border border-transparent focus-within:border-logo-primary/20 transition-all">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-10 w-10 shrink-0 rounded-xl hover:bg-white hover:shadow-sm"
+                  onClick={() => {
+                    const [year, month] = filters.month.split('-').map(Number);
+                    const d = new Date(year, month - 2, 1);
+                    setFilters({ ...filters, month: d.toISOString().slice(0, 7) });
+                  }}
+                >
+                  <ChevronLeft size={18} className="text-gray-400" />
+                </Button>
+
+                <input
+                  type="month"
+                  value={filters.month}
+                  onChange={(e) => setFilters({ ...filters, month: e.target.value })}
+                  className="flex-1 bg-transparent border-none py-2 px-1 focus:ring-0 font-bold uppercase text-[11px] tracking-tight text-center cursor-pointer"
+                />
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-10 w-10 shrink-0 rounded-xl hover:bg-white hover:shadow-sm"
+                  onClick={() => {
+                    const [year, month] = filters.month.split('-').map(Number);
+                    const d = new Date(year, month, 1);
+                    setFilters({ ...filters, month: d.toISOString().slice(0, 7) });
+                  }}
+                >
+                  <ChevronRight size={18} className="text-gray-400" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Búsqueda por Título (Colapsable en móvil) */}
+            <div className={cn("space-y-2 transition-all", !showMobileFilters && "hidden md:block")}>
+              <label className="block text-[11px] font-bold text-[#86868b] uppercase tracking-wider pl-1 flex items-center gap-2">
+                <Search size={12} className="text-logo-primary" />
+                Título del Evento
+              </label>
+              <div className="relative">
+                <Search size={14} className="md:hidden absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre..."
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  className="w-full pl-10 md:pl-4 pr-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all text-sm font-semibold placeholder:text-gray-400"
+                />
+              </div>
+            </div>
+
+            {/* Filtro por Comité (Colapsable en móvil) */}
+            <div className={cn("space-y-2 transition-all", !showMobileFilters && "hidden md:block")}>
+              <label className="block text-[11px] font-bold text-[#86868b] uppercase tracking-wider pl-1 flex items-center gap-2">
+                <Tag size={12} className="text-logo-primary" />
+                Comité
+              </label>
+              <div className="relative">
+                <select
+                  value={filters.committee}
+                  onChange={(e) => setFilters({ ...filters, committee: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-logo-primary transition-all text-sm font-semibold appearance-none cursor-pointer"
+                >
+                  <option value="">Todos los comités</option>
+                  {committees.map(committee => (
+                    <option key={committee.id} value={committee.id}>{committee.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                  <ChevronRight size={16} className="rotate-90" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className={cn(
+          "grid gap-4 md:grid-cols-2 lg:grid-cols-3 transition-all duration-500",
+          loading ? "opacity-50 grayscale-[20%] pointer-events-none" : "opacity-100"
+        )}>
+          {events.map((event, index) => (
             <div
               key={event.id}
-              className="p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-200"
+              className="p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 animate-in fade-in slide-in-from-bottom-2"
+              style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
@@ -665,10 +840,10 @@ export default function EventsPage() {
                     onChange={(e) => handleStartDateTimeChange(e.target.value, undefined)}
                     className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm font-medium text-sm"
                   />
-                  <TimePicker 
+                  <TimePicker
                     label="Hora de Inicio"
-                    value={splitDateTime(formData.start_time).time} 
-                    onChange={(t) => handleStartDateTimeChange(undefined, t)} 
+                    value={splitDateTime(formData.start_time).time}
+                    onChange={(t) => handleStartDateTimeChange(undefined, t)}
                   />
                 </div>
               </div>
@@ -689,10 +864,10 @@ export default function EventsPage() {
                     onChange={(e) => handleEndDateTimeChange(e.target.value, undefined)}
                     className="w-full px-4 py-3 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-logo-primary shadow-sm font-medium text-sm"
                   />
-                  <TimePicker 
+                  <TimePicker
                     label="Hora de Término"
-                    value={splitDateTime(formData.end_time).time} 
-                    onChange={(t) => handleEndDateTimeChange(undefined, t)} 
+                    value={splitDateTime(formData.end_time).time}
+                    onChange={(t) => handleEndDateTimeChange(undefined, t)}
                   />
                 </div>
               </div>

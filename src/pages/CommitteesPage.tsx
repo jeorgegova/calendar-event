@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye, Search, Filter, Tag, X, ChevronRight } from "lucide-react";
+import { Plus, Edit, Trash2, Search, X } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -152,7 +152,7 @@ export default function CommitteesPage() {
             </Button>
           )}
         </div>
-        
+
         {/* Compact Filter */}
         <div className="bg-white border border-gray-100 rounded-2xl p-3 mb-6 shadow-sm flex gap-3 items-center">
           <div className="relative flex-1">
@@ -165,7 +165,7 @@ export default function CommitteesPage() {
               className="w-full pl-9 pr-4 py-2 bg-gray-50 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-logo-primary/20 transition-all placeholder:text-gray-400"
             />
             {searchTerm && (
-              <button 
+              <button
                 onClick={() => setSearchTerm("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
@@ -250,8 +250,8 @@ export default function CommitteesPage() {
               {searchTerm ? "No se encontraron comités" : "No hay comités"}
             </h3>
             <p className="text-sm text-[#86868b]">
-              {searchTerm 
-                ? "Prueba con otros términos o limpia el filtro" 
+              {searchTerm
+                ? "Prueba con otros términos o limpia el filtro"
                 : "Crea el primer comité para empezar"}
             </p>
             {canEdit && !searchTerm && (
@@ -260,9 +260,9 @@ export default function CommitteesPage() {
               </Button>
             )}
             {searchTerm && (
-              <Button 
-                variant="outline" 
-                onClick={() => { setSearchTerm(""); }} 
+              <Button
+                variant="outline"
+                onClick={() => { setSearchTerm(""); }}
                 className="mt-4"
               >
                 Limpiar Búsqueda
